@@ -844,7 +844,7 @@ size_t Noritake_GUU100::vt_exec (void)
 			while (n--) {
 				// column += 1.0 is "cursor foward"
 				// column -= 1.0 is "cursor backward"
-				(vt_cmd == 'A') ? c += 1.0 : c -= 1.0;
+				(vt_cmd == 'C') ? c += 1.0 : c -= 1.0;
 			}
 			setLine (c, r); // set new cursor row & column
 			break;
