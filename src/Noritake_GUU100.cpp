@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Noritake GU128X64E-U100 VFD Display Driver Library for Arduino
-//  Copyright (c) 2012, 2018 Roger A. Krupski <rakrupski@verizon.net>
+//  Copyright (c) 2012, 2016 Roger A. Krupski <rakrupski@verizon.net>
 //
-//  Last update: 6 May 2018
+//  Last update: 16 December 2016
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -43,8 +43,8 @@ void Noritake_GUU100::init (const void *fontPtr, uint8_t hofs, uint8_t vofs)
 	setDisplay (1); // turn display on
 	setBrightness (100); // default brightness and cathode on
 	clearScreen(); // clear screen
-	setCursor (0, 0); // zero cursor
 	setScroll (0); // zero scroll
+	setCursor (0, 0); // zero cursor
 	vt_reset(); // initialize vt parser
 }
 
@@ -780,19 +780,9 @@ uint8_t Noritake_GUU100::getMaxLines (void)
 	return _maxLines;
 }
 
+// set cursor home)
 void Noritake_GUU100::home (void)
 {
-	home (0);
-}
-
-// set cursor home. optionally zero the Z scroll also (if "z" is non-zero)
-void Noritake_GUU100::home (uint8_t z)
-{
-	// optional reset scroll (default=no)
-	if (z) {
-		setScroll (z % _displayHeight);
-	}
-
 	setCursor (0, 0);
 }
 
@@ -801,87 +791,60 @@ void Noritake_GUU100::vt_reset (void)
 {
 	vt_state = 0;
 	vt_cmd = 0;
-	vt_args = 8;
-	while (vt_args--) {
-		vt_arg[vt_args] = 0;
-	}
 	vt_args = 0;
+	memset (vt_arg, 0, sizeof (vt_arg));
 }
 
 // execute a VT command
 size_t Noritake_GUU100::vt_exec (void)
 {
-	uint8_t n;
-	double r, c;
+	uint8_t i, n;
+	double col, row;
 
 	switch (vt_cmd) {
 
-		// CSI[n]A (cursor up) or CSI[n]B (cursor down)
-		// NOTE: [n] is options and defaults to 1 if not given
-		case 'A'...'B': {
-			n = 1; // default
-			getLine (c, r); // get current cursor row & column
-			if (vt_arg[0] > 0) {
-				n = vt_arg[0];
-			}
-			while (n--) {
-				// row -= 1.0 is "cursor up"
-				// row += 1.0 is "cursor down"
-				(vt_cmd == 'A') ? r -= 1.0 : r += 1.0;
-			}
-			setLine (c, r); // set new cursor row & column
-			break;
-		}
+		// CSI[n]A (cursor up), CSI[n]B (cursor down),
+		// CSI[n]C (cursor forward) or CSI[n]D (cursor backward).
+		// NOTE: [n] is optional and defaults to 1 if not given
+		case 'A' ... 'D': {
+			static struct {
+				const double col, row;
+			} adj[] = {
+				{  0.0, -1.0 },
+				{  0.0,  1.0 },
+				{  1.0,  0.0 },
+				{ -1.0,  0.0 },
+			};
 
-		// CSI[n]C (cursor forward) or CSI[n]D (cursor backward)
-		// NOTE: [n] is options and defaults to 1 if not given
-		case 'C'...'D': {
-			n = 1; // default
-			getLine (c, r); // get current cursor row & column
-			if (vt_arg[0] > 0) {
-				n = vt_arg[0];
-			}
+			i = (vt_cmd - 'A');
+
+			n = (vt_arg[0] > 0) ? vt_arg[0] : 1;
+
+			getLine (col, row); // get current cursor row & column
+
 			while (n--) {
-				// column += 1.0 is "cursor foward"
-				// column -= 1.0 is "cursor backward"
-				(vt_cmd == 'A') ? c += 1.0 : c -= 1.0;
+				row += adj[i].row;
+				col += adj[i].col;
 			}
-			setLine (c, r); // set new cursor row & column
+			setLine (col, row); // set new cursor row & column
 			break;
 		}
 
 		// CSI[row];[column]f (line position X,Y)
+		// CSI[row];[column]H (line position X,Y)
 		// NOTE: non-standard, ANSI uses 1;1 as the home position while
 		//       we use 0;0 to conform with the Arduino numbering.
-		// NOTE: On a character LCD/VFD, cursor and line are the same
-		//       thing, but we support "f" for line and "H" for cursor
-		//       to conform to the VFD driver syntax. Not ANSI standard.
-		case 'f': {
-			if (vt_args == 2) {
-				setLine (vt_arg[0], vt_arg[1]);
-			}
-			break;
-		}
-
-		// CSI[x];[y]H (cursor position X,Y)
-		// NOTE: non-standard, ANSI uses 1;1 as the home position while
-		//       we use 0;0 to conform with the Arduino numbering.
-		// NOTE: On a character LCD/VFD, cursor and line are the same
-		//       thing, but we support "f" for line and "H" for cursor
-		//       to conform to the VFD driver syntax. Not ANSI standard.
+		case 'f':
 		case 'H': {
-			if (vt_args == 2) {
-				setCursor (vt_arg[0], vt_arg[1]);
-			}
+			col = vt_arg[0];
+			row = vt_arg[1];
+			setLine (col, row); // set new cursor row & column
 			break;
 		}
 
-		// CSI[n]J (erase in display `clear screen')
-		// NOTE: if [n] is not specified, it defaults to 0.
-		// NOTE: we support [n] 0...3, but in all cases the entire screen
-		//       is cleared and the cursor set to 0,0 (home). Not ANSI standard.
+		// CSI[2]J (erase in display `clear screen')
 		case 'J': {
-			if ((vt_arg[0] == 2) && !(vt_args < 0) && !(vt_args > 3)) {
+			if (vt_arg[0] == 2) {
 				clearScreen();
 			}
 			break;
@@ -889,30 +852,40 @@ size_t Noritake_GUU100::vt_exec (void)
 
 		// CSIm (select graphic rendition)
 		// we sort of support this as follows:
-		// CSI0m: reset: set brightness to  50%
-		// CSI1m: bold:  set brightness to 100%
-		// CSI2m: faint: set brightness to  30%
+		// CSI0m:  reset:   set brightness to  50% and invert off
+		// CSI1m:  bold:    set brightness to 100%
+		// CSI2m:  faint:   set brightness to  20%
+		// CSI7m:  inverse: set video invert on
+		// CSI27m: inv off: set video invert off
 		// CSI30m...37m: foreground "colors" 30...37 are 8 steps of brightness
-		// CSI40m...47m: background "colors" 40...47 are 8 steps of brightness (same as above)
 		case 'm': {
-			if (vt_args > 0) {
-				switch (vt_arg[0]) {
+			for (n = 0; n < vt_args; n++) {
+				switch (vt_arg[n]) {
 					case 0: {
-						setBrightness (50);
+						setInvert (0); // ANSI reverse video off
+						setBrightness (50); // ANSI reset/normal
 						break;
 					}
 					case 1: {
-						setBrightness (100);
+						setBrightness (100); // ANSI bold/bright
 						break;
 					}
 					case 2: {
-						setBrightness (30);
+						setBrightness (20); // ANSI faint/dim
+						break;
+					}
+					case 7: {
+						setInvert (1); // ANSI reverse video on
+						break;
+					}
+					case 27: {
+						setInvert (0); // ANSI reverse video off
 						break;
 					}
 					// ansi colors used as brightness control
-					case 30 ... 49: {
-						// 30|40==0, 39|49==99
-						setBrightness ((vt_arg[0] % 10) * 11);
+					case 30 ... 39: {
+						// 30==0, 39==99
+						setBrightness ((vt_arg[n] % 10) * 11);
 						break;
 					}
 					default: {
@@ -924,17 +897,13 @@ size_t Noritake_GUU100::vt_exec (void)
 
 		// CSIs (save cursor position)
 		case 's': {
-			if (vt_args == 1) {
-				pushCursor();
-			}
+			pushCursor();
 			break;
 		}
 
 		// CSIu (restore cursor position)
 		case 'u': {
-			if (vt_args == 1) {
-				popCursor();
-			}
+			popCursor();
 			break;
 		}
 
@@ -996,13 +965,15 @@ size_t Noritake_GUU100::write (uint8_t c)
 				vt_arg[vt_args] *= 10; // parse out...
 				vt_arg[vt_args] += (c - '0'); // ...first param
 				return 0; // got part of a vt sequence, don't print it
+			}
 
-			} else if (c == ';') { // semicolon flags a parameter delimiter
+			if (c == ';') { // semicolon flags a parameter delimiter
 				vt_args++; // count parsed arg
 				vt_state++; // flag "got param delimiter, look for next param"
 				return 0; // got part of a vt sequence, don't print it
+			}
 
-			} else if (! ((c < '@') || (c > '~'))) { // 0x40...0x7E marks end of VT command
+			if (! ((c < '@') && (c > '~'))) { // 0x40...0x7E marks end of VT command
 				vt_cmd = c; // copy VT command
 				vt_args++; // normalize count
 				return vt_exec(); // got a valid sequence, exec it
@@ -1276,3 +1247,146 @@ uint8_t Noritake_GUU100::_clip (uint8_t x)
 }
 
 //////// end of Noritake_GUU100.cpp ////////
+
+/*
+// execute a VT command
+size_t Noritake_GUU100::vt_exec (void)
+{
+	uint8_t n;
+	double r, c;
+
+	switch (vt_cmd) {
+
+		// CSI[n]A (cursor up) or CSI[n]B (cursor down)
+		// NOTE: [n] is options and defaults to 1 if not given
+		case 'A'...'B': {
+			n = 1; // default
+			getLine (c, r); // get current cursor row & column
+			if (vt_arg[0] > 0) {
+				n = vt_arg[0];
+			}
+			while (n--) {
+				// row -= 1.0 is "cursor up"
+				// row += 1.0 is "cursor down"
+				(vt_cmd == 'A') ? r -= 1.0 : r += 1.0;
+			}
+			setLine (c, r); // set new cursor row & column
+			break;
+		}
+
+		// CSI[n]C (cursor forward) or CSI[n]D (cursor backward)
+		// NOTE: [n] is options and defaults to 1 if not given
+		case 'C'...'D': {
+			n = 1; // default
+			getLine (c, r); // get current cursor row & column
+			if (vt_arg[0] > 0) {
+				n = vt_arg[0];
+			}
+			while (n--) {
+				// column += 1.0 is "cursor foward"
+				// column -= 1.0 is "cursor backward"
+				(vt_cmd == 'C') ? c += 1.0 : c -= 1.0;
+			}
+			setLine (c, r); // set new cursor row & column
+			break;
+		}
+
+		// CSI[row];[column]f (line position X,Y)
+		// NOTE: non-standard, ANSI uses 1;1 as the home position while
+		//       we use 0;0 to conform with the Arduino numbering.
+		// NOTE: On a character LCD/VFD, cursor and line are the same
+		//       thing, but we support "f" for line and "H" for cursor
+		//       to conform to the VFD driver syntax. Not ANSI standard.
+		case 'f': {
+			if (vt_args == 2) {
+				setLine (vt_arg[0], vt_arg[1]);
+			}
+			break;
+		}
+
+		// CSI[x];[y]H (cursor position X,Y)
+		// NOTE: non-standard, ANSI uses 1;1 as the home position while
+		//       we use 0;0 to conform with the Arduino numbering.
+		// NOTE: On a character LCD/VFD, cursor and line are the same
+		//       thing, but we support "f" for line and "H" for cursor
+		//       to conform to the VFD driver syntax. Not ANSI standard.
+		case 'H': {
+			if (vt_args == 2) {
+				setCursor (vt_arg[0], vt_arg[1]);
+			}
+			break;
+		}
+
+		// CSI[n]J (erase in display `clear screen')
+		// NOTE: if [n] is not specified, it defaults to 0.
+		// NOTE: we support [n] 0...3, but in all cases the entire screen
+		//       is cleared and the cursor set to 0,0 (home). Not ANSI standard.
+		case 'J': {
+			if ((vt_arg[0] == 2) && !(vt_args < 0) && !(vt_args > 3)) {
+				clearScreen();
+			}
+			break;
+		}
+
+		// CSIm (select graphic rendition)
+		// we sort of support this as follows:
+		// CSI0m: reset: set brightness to  50%
+		// CSI1m: bold:  set brightness to 100%
+		// CSI2m: faint: set brightness to  30%
+		// CSI30m...37m: foreground "colors" 30...37 are 8 steps of brightness
+		// CSI40m...47m: background "colors" 40...47 are 8 steps of brightness (same as above)
+		case 'm': {
+			if (vt_args > 0) {
+				switch (vt_arg[0]) {
+					case 0: {
+						setBrightness (50);
+						break;
+					}
+					case 1: {
+						setBrightness (100);
+						break;
+					}
+					case 2: {
+						setBrightness (30);
+						break;
+					}
+					// ansi colors used as brightness control
+					case 30 ... 49: {
+						// 30|40==0, 39|49==99
+						setBrightness ((vt_arg[0] % 10) * 11);
+						break;
+					}
+					default: {
+						break;
+					}
+				}
+			}
+		}
+
+		// CSIs (save cursor position)
+		case 's': {
+			if (vt_args == 1) {
+				pushCursor();
+			}
+			break;
+		}
+
+		// CSIu (restore cursor position)
+		case 'u': {
+			if (vt_args == 1) {
+				popCursor();
+			}
+			break;
+		}
+
+		default: {
+			break;
+		}
+	}
+
+	vt_reset(); // cmd done, reset parser
+
+	return 0;
+}
+
+*/
