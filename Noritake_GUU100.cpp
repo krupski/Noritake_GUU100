@@ -919,9 +919,8 @@ size_t Noritake_GUU100::vt_exec (void)
 
 size_t Noritake_GUU100::write (int c)
 {
-// support non-uint8_t writes
-	write ((uint8_t)(c));
-	return 1;
+	// support non-uint8_t writes
+	return write ((uint8_t)(c));
 }
 
 // write any character on the screen from a loaded font.

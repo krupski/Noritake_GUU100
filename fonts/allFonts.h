@@ -28,7 +28,7 @@
 #define ALL_FONTS_H
 
 #include "ati_8x16.h"
-#include "c64.h"
+#include "com64.h"
 #include "coco3.h"
 #include "deco_8x16.h"
 #include "double.h"

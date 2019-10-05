@@ -1,0 +1,11 @@
+100 open "I",#1,"listing"
+110 open "O",#2,"listing_bytes"
+120 while not eof(1)
+130   line input #1,s$
+140   print #2,chr$(9);
+150   for x=1 to len(s$)
+160     print #2,"'"+mid$(s$,x,1)+"',";
+170   next x
+180   print #2,"0,"
+190 wend
+200 close

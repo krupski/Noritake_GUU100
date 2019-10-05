@@ -84,11 +84,8 @@ class Noritake_GUU100 : public Print {
 		size_t write (int);
 		virtual size_t write (uint8_t);
 		using Print::write;
+
 	private:
-		// utility defines
-		#ifndef sizeOF
-		#define sizeOF(A)(sizeof(A)/sizeof(*A))
-		#endif
 		// display is 128 X 64 pixels (8192 pixels, 1024 bytes)
 		#define VFD_WIDTH 128
 		#define VFD_HEIGHT 64
@@ -160,6 +157,7 @@ class Noritake_GUU100 : public Print {
 		inline void _writePort (uint8_t, uint8_t);
 		inline uint8_t _cu_uw_read (void);
 		inline void _cu_uw_write (uint8_t);
+
 	protected:
 		// driver I/O bits
 		uint8_t RS_BIT;
