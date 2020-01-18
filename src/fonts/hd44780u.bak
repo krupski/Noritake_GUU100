@@ -21,7 +21,9 @@
 #ifndef HD44780U_H
 #define HD44780U_H
 
-static const uint8_t hd44780u[] PROGMEM = {
+#define hd44780u (pgm_get_far_address(_hd44780u))
+
+static const uint8_t _hd44780u[] PROGMEM = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)
@@ -278,7 +280,6 @@ static const uint8_t hd44780u[] PROGMEM = {
 	0x0C, 0x50, 0x52, 0x51, 0x3C, 0x00, // unicode 0xC2FD
 	0x7F, 0x14, 0x22, 0x1C, 0x00, 0x00, // unicode 0xC2FE
 	0x0C, 0x51, 0x50, 0x51, 0x3C, 0x00, // unicode 0xC2FF
-
 };
 
 #endif // #ifndef HD44780U_H

@@ -21,7 +21,9 @@
 #ifndef OCR_8X13_H
 #define OCR_8X13_H
 
-static const uint8_t ocr_8x13[] PROGMEM = {
+#define ocr_8x13 (pgm_get_far_address(_ocr_8x13))
+
+static const uint8_t _ocr_8x13[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x0D, // height (base + 1)

@@ -21,7 +21,9 @@
 #ifndef MDA_14_H
 #define MDA_14_H
 
-static const uint8_t mda_14[] PROGMEM = {
+#define mda_14 (pgm_get_far_address(_mda_14))
+
+static const uint8_t _mda_14[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x0E, // height (base + 1)

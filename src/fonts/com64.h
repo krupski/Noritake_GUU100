@@ -21,7 +21,9 @@
 #ifndef COM64_H
 #define COM64_H
 
-static const uint8_t com64[] PROGMEM = {
+#define com64 (pgm_get_far_address(_com64))
+
+static const uint8_t _com64[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x08, // height (base + 1)

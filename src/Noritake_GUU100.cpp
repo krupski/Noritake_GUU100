@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Noritake GU128X64E-U100 VFD Display Driver Library for Arduino
-//  Copyright (c) 2012, 2016 Roger A. Krupski <rakrupski@verizon.net>
+//  Copyright (c) 2012, 2019 Roger A. Krupski <rakrupski@verizon.net>
 //
-//  Last update: 16 December 2016
+//  Last update: 18 December 2019
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,39 +22,44 @@
 
 #include "Noritake_GUU100.h"
 
-// init driver variables and setup display
-void Noritake_GUU100::init (void)
+// init driver variables, setup display and load font
+// font passed as a 16 bit pointer to PROGMEM
+void Noritake_GUU100::init (const void *fontPtr, int hofs, int vofs)
 {
-	init ((const void *)(0), 0, 0);
+	init ((uint32_t)(fontPtr), hofs, vofs);
 }
 
 // init driver variables, setup display and load font
-void Noritake_GUU100::init (const void *fontPtr, uint8_t hofs, uint8_t vofs)
+// font passed as a 24 bit address via pgm_get_far_address()
+// hofs = optional extra horizontal space between chars (x axis)
+// vofs = optional extra vertical space between chars (y axis)
+void Noritake_GUU100::init (uint32_t fontPtr, int hofs, int vofs)
 {
 	_initPort(); // initialize the I/O port (set in config.h)
 	_displayWidth = VFD_WIDTH; // init display...
 	_displayHeight = VFD_HEIGHT; // ... dimensions
 	_clrFont(); // zero out font data
+
 	// if font specified in init() then set it
-	if (fontPtr != (const void *)(0)) {
+	if (fontPtr) {
 		setFont (fontPtr, hofs, vofs);
 	}
+
 	setInvert (0); // display invert yes/no
 	setDisplay (1); // turn display on
 	setBrightness (100); // default brightness and cathode on
 	clearScreen(); // clear screen
 	setScroll (0); // zero scroll
 	setCursor (0, 0); // zero cursor
-	vt_reset(); // initialize vt parser
 }
 
 // turn display on or off (filament stays on)
 void Noritake_GUU100::setDisplay (uint8_t on)
 {
-	_cur_x = 64; // turn on right side
-	_writeCmd (SETDISP | (on ? 0x01 : 0x00));
 	_cur_x = 0; // turn on left side
-	_writeCmd (SETDISP | (on ? 0x01 : 0x00));
+	_writeCmd (SETDISP | (on ? 1 : 0));
+	_cur_x = 64; // turn on right side
+	_writeCmd (SETDISP | (on ? 1 : 0));
 }
 
 // set the display brightness to one of 8 levels:
@@ -64,8 +69,7 @@ uint8_t Noritake_GUU100::setBrightness (uint8_t percent)
 	// brightness calculation multiplies all numbers
 	// by 10 so that we can do fractional math (i.e.
 	// 125 is really 12.5)
-	int16_t i = 1000; // 100 * 10
-
+	int i = 1000; // 100 * 10
 	percent = (percent > 100) ? 100 : percent;
 	_displayBright = 7;
 
@@ -82,17 +86,17 @@ uint8_t Noritake_GUU100::setBrightness (uint8_t percent)
 }
 
 // set vertical offset position (both soft info and hardware registers)
-void Noritake_GUU100::setScroll (uint8_t z)
+void Noritake_GUU100::setScroll (int z)
 {
 	_cur_z = (z % _displayHeight);
-	_cur_x = 64; // set right side
-	_writeCmd (SETLINE | _cur_z);
 	_cur_x = 0; // set left side
+	_writeCmd (SETLINE | _cur_z);
+	_cur_x = 64; // set right side
 	_writeCmd (SETLINE | _cur_z);
 }
 
 // get scroll (vertical roll) offset
-void Noritake_GUU100::getScroll (uint8_t &z)
+void Noritake_GUU100::getScroll (int &z)
 {
 	z = _cur_z;
 }
@@ -111,7 +115,7 @@ void Noritake_GUU100::getLine (double &x, double &y)
 }
 
 // set cursor position (both soft info and hardware registers)
-void Noritake_GUU100::setCursor (uint8_t x, uint8_t y)
+void Noritake_GUU100::setCursor (int x, int y)
 {
 	if (_clampXY (x, y)) {
 		_cur_x = x; // update x and y...
@@ -122,7 +126,7 @@ void Noritake_GUU100::setCursor (uint8_t x, uint8_t y)
 }
 
 // get current cursor X,Y coordinates
-void Noritake_GUU100::getCursor (uint8_t &x, uint8_t &y)
+void Noritake_GUU100::getCursor (int &x, int &y)
 {
 	x = _cur_x;
 	y = _cur_y;
@@ -143,19 +147,19 @@ void Noritake_GUU100::popCursor (void)
 }
 
 // set dot at X,Y on or off
-void Noritake_GUU100::setDot (uint8_t x, uint8_t y, uint8_t on)
+void Noritake_GUU100::setDot (int x, int y, uint8_t on)
 {
 	if (_clampXY (x, y)) {
 		on
-		? _writeData (_readData (x, y) | (1U << (y % 8)))
-		: _writeData (_readData (x, y) & ~(1U << (y % 8)));
+		? _writeData (_readData (x, y) | (1 << (y % 8)))
+		: _writeData (_readData (x, y) & ~ (1 << (y % 8)));
 	}
 }
 
 // get state of pixel at X,Y
-uint8_t Noritake_GUU100::getDot (uint8_t x, uint8_t y)
+uint8_t Noritake_GUU100::getDot (int x, int y)
 {
-	return ((_readData (x, y) & (1U << y % 8)) ? 1 : 0);
+	return ((_readData (x, y) & (1 << y % 8)) ? 1 : 0);
 }
 
 // this makes drawing normal or inverted (negative)
@@ -176,7 +180,6 @@ uint8_t Noritake_GUU100::getInvert (void)
 uint8_t Noritake_GUU100::clearScreen (uint8_t pattern)
 {
 	uint8_t n = _displayWidth;
-
 	setCursor (0, 0); // make sure cursor pos is valid
 
 	while (n--) {
@@ -191,25 +194,21 @@ uint8_t Noritake_GUU100::clearScreen (uint8_t pattern)
 	}
 
 	setCursor (0, 0);
-
 	return pattern;
 }
 
-void Noritake_GUU100::drawImage (const void *data, uint8_t x, uint8_t y, uint8_t width, uint8_t height)
+void Noritake_GUU100::drawImage (const void *data, int x, int y, uint8_t width, uint8_t height)
 {
 	drawImage ((uint32_t)(data), x, y, width, height);
 }
 
-void Noritake_GUU100::drawImage (void *data, uint8_t x, uint8_t y, uint8_t width, uint8_t height)
+void Noritake_GUU100::drawImage (void *data, int x, int y, uint8_t width, uint8_t height)
 {
 	uint8_t mask, mix;
 	int src;
 	int ix, iy, y2, end;
-
 	const uint8_t *ptr;
-
 	ptr = (const uint8_t *)(data);
-
 	y2 = (y + height);
 
 	if (_clip (y) == _clip (y2)) {
@@ -227,6 +226,7 @@ void Noritake_GUU100::drawImage (void *data, uint8_t x, uint8_t y, uint8_t width
 		if (y == _clip (y)) {
 			for (iy = y; iy < _clip (y2); iy += 8) {
 				setCursor (x, iy);
+
 				for (ix = 0; ix < width; ix++) {
 					src = ptr[ix];
 					_writeData (src);
@@ -288,12 +288,11 @@ void Noritake_GUU100::drawImage (void *data, uint8_t x, uint8_t y, uint8_t width
 }
 
 // draw an image pointed to by an absolute 24 bit address of data in PROGMEM
-void Noritake_GUU100::drawImage (uint32_t data, uint8_t x, uint8_t y, uint8_t width, uint8_t height)
+void Noritake_GUU100::drawImage (uint32_t data, int x, int y, uint8_t width, uint8_t height)
 {
 	uint8_t mask, mix;
 	int src;
 	int ix, iy, y2, end;
-
 	y2 = (y + height);
 
 	if (_clip (y) == _clip (y2)) {
@@ -348,7 +347,9 @@ void Noritake_GUU100::drawImage (uint32_t data, uint8_t x, uint8_t y, uint8_t wi
 					setCursor (x, iy);
 
 					for (ix = 0; ix < width; ix++) {
-						src = pgm_read_byte (data + ix) + ((data + ix < end) ? (pgm_read_byte (data + ix + width) << 8) : 0);
+						src = pgm_read_byte (data + ix) + ((data + ix < end)
+						   ? (pgm_read_byte (data + ix + width) << 8)
+						   : 0);
 						src >>= (_align (y) - y);
 						_writeData (src);
 					}
@@ -362,7 +363,9 @@ void Noritake_GUU100::drawImage (uint32_t data, uint8_t x, uint8_t y, uint8_t wi
 
 				for (ix = 0; ix < width; ix++) {
 					mix = _readData (x + ix, _clip (y2));
-					src = pgm_read_byte (data + ix) + ((data + ix < end) ? (pgm_read_byte (data + ix + width) << 8) : 0);
+					src = pgm_read_byte (data + ix) + ((data + ix < end)
+					   ? (pgm_read_byte (data + ix + width) << 8)
+					   : 0);
 					src >>= (_align (y) - y);
 					src = (mix & ~mask) | (src & mask);
 					_writeData (src);
@@ -376,8 +379,8 @@ void Noritake_GUU100::drawImage (uint32_t data, uint8_t x, uint8_t y, uint8_t wi
 ////////////////////////////////////////////////////////////////////////
 // draw a polygon of any number of sides, rotated by any "angle"
 // note angle "0" degrees is straight up (i.e. a triangle is
-// drawn like this):   /\
-//                    /__\
+// drawn like this): /\
+//                  /__\
 // and the angle goes clockwise so that an angle of 90 degrees
 // points the apex to the 3:00 o'clock position.
 //
@@ -386,9 +389,9 @@ void Noritake_GUU100::drawImage (uint32_t data, uint8_t x, uint8_t y, uint8_t wi
 // Reference: http://forum.arduino.cc/index.php?topic=343198
 ////////////////////////////////////////////////////////////////////////
 ***/
-void Noritake_GUU100::drawPolygon (uint8_t x, uint8_t y, uint8_t radius, double angle, uint8_t sides, uint8_t on)
+void Noritake_GUU100::drawPolygon (int x, int y, int radius, double angle, uint8_t sides, uint8_t on)
 {
-	uint8_t x1, y1, x2, y2;
+	int x1, y1, x2, y2;
 	double th, inc, start;
 
 	if (sides < 3) { // polygon must be at least 3 sides!
@@ -404,16 +407,15 @@ void Noritake_GUU100::drawPolygon (uint8_t x, uint8_t y, uint8_t radius, double 
 	start = rad (angle - 90.0); // make 0 degrees straight up
 	th = start; // first vertex is at the start (of course)
 	inc = ((M_PI * 2.0) / sides); // increment (in radians) to next vertex
-
 	x2 = ((cos (th) * radius) + x); // get first vertex
 	y2 = ((sin (th) * radius) + y);
 
 	while (sides--) {
 		x1 = x2; // old vertex is...
 		y1 = y2; // ...the new startpoint
-		th = ((sides * inc) + start); // increment to the next vertex
-		x2 = ((cos (th) * radius) + x); // get first vertex
-		y2 = ((sin (th) * radius) + y);
+		th = (sides * inc) + start; // increment to the next vertex
+		x2 = (cos (th) * radius) + x; // get first vertex
+		y2 = (sin (th) * radius) + y;
 		drawLine (x1, y1, x2, y2, on); // draw side
 	}
 }
@@ -422,12 +424,11 @@ void Noritake_GUU100::drawPolygon (uint8_t x, uint8_t y, uint8_t radius, double 
 // this is useful for drawing "analog" meters, gauges, etc...
 // angle 0 degrees is straight up. increasing angles go clockwise
 // (that is, 90 degrees points to the 3:00 o'clock position, etc.).
-void Noritake_GUU100::drawVector (uint8_t x, uint8_t y, uint8_t sr, uint8_t er, double angle, uint8_t on)
+void Noritake_GUU100::drawVector (int x, int y, int sr, int er, double angle, uint8_t on)
 {
 	double th = rad (angle - 90.0);
 	double s = sin (th);
 	double c = cos (th);
-
 	drawLine (
 		round ((c * sr) + x),
 		round ((s * sr) + y),
@@ -437,21 +438,34 @@ void Noritake_GUU100::drawVector (uint8_t x, uint8_t y, uint8_t sr, uint8_t er, 
 	);
 }
 
-void Noritake_GUU100::drawLine (uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, uint8_t on)
+void Noritake_GUU100::drawLine (int x0, int y0, int x1, int y1, uint8_t on)
 {
-	int dx = abs (x1 - x0);
-	int dy = abs (y1 - y0);
-	int sx = x0 < x1 ? 1 : -1;
-	int sy = y0 < y1 ? 1 : -1;
-	int e = dx - dy;
+	int dx, dy, sx, sy;
+
+	if (x0 < x1) {
+		dx = (x1 - x0);
+		sx = 1;
+
+	} else {
+		dx = (x0 - x1);
+		sx = -1;
+	}
+
+	if (y0 < y1) {
+		dy = (y1 - y0);
+		sy = 1;
+
+	} else {
+		dy = (y0 - y1);
+		sy = -1;
+	}
+
+	int e = (dx - dy);
 	int e2;
 
-	while (1) {
-		setDot (x0, y0, on);
+	while (((x1 != x0) || (y1 != y0))) {
 
-		if (x0 == x1 && y0 == y1) {
-			break;
-		}
+		setDot (x0, y0, on);
 
 		e2 = 2 * e;
 
@@ -468,7 +482,7 @@ void Noritake_GUU100::drawLine (uint8_t x0, uint8_t y0, uint8_t x1, uint8_t y1, 
 }
 
 // draw a rectangle from x1 to y1 and x2 to y2
-void Noritake_GUU100::drawRect (uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, uint8_t on)
+void Noritake_GUU100::drawRect (int x1, int y1, int x2, int y2, uint8_t on)
 {
 	// draw a rectangle from 4 lines
 	drawLine (x1, y1, x2, y1, on);
@@ -478,18 +492,14 @@ void Noritake_GUU100::drawRect (uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, 
 }
 
 // draw a filled rectangle with multiple lines
-void Noritake_GUU100::fillRect (uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, uint8_t on)
+void Noritake_GUU100::fillRect (int x1, int y1, int x2, int y2, uint8_t on)
 {
 	if (x1 > x2) {
-		x1 ^= x2;
-		x2 ^= x1;
-		x1 ^= x2;
+		swap (x1, x2);
 	}
 
 	if (y1 > y2) {
-		y1 ^= y2;
-		y2 ^= y1;
-		y1 ^= y2;
+		swap (y1, y2);
 	}
 
 	if ((x2 - x1) < (y2 - y1)) {
@@ -505,20 +515,16 @@ void Noritake_GUU100::fillRect (uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, 
 }
 
 // draw a rectangle with rounded corners of "radius" pixels
-void Noritake_GUU100::drawRoundRect (uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, uint8_t radius, uint8_t on)
+void Noritake_GUU100::drawRoundRect (int x1, int y1, int x2, int y2, int radius, uint8_t on)
 {
 	int x, y, tSwitch;
 
 	if (x1 > x2) {
-		x1 ^= x2;
-		x2 ^= x1;
-		x1 ^= x2;
+		swap (x1, x2);
 	}
 
 	if (y1 > y2) {
-		y1 ^= y2;
-		y2 ^= y1;
-		y1 ^= y2;
+		swap (y1, y2);
 	}
 
 	x = 0;
@@ -548,7 +554,6 @@ void Noritake_GUU100::drawRoundRect (uint8_t x1, uint8_t y1, uint8_t x2, uint8_t
 
 	x = x2 + radius - (2 * radius);
 	y = y2 + radius - (2 * radius);
-
 	drawLine (x1 + radius, y1, x, y1, on);
 	drawLine (x1 + radius, y2, x, y2, on);
 	drawLine (x1, y1 + radius, x1, y, on);
@@ -556,7 +561,7 @@ void Noritake_GUU100::drawRoundRect (uint8_t x1, uint8_t y1, uint8_t x2, uint8_t
 }
 
 // draw an elipse from centered at X,Y with width and height as specified
-void Noritake_GUU100::drawEllipse (uint8_t x, uint8_t y, uint8_t width, uint8_t height, uint8_t on)
+void Noritake_GUU100::drawEllipse (int x, int y, uint8_t width, uint8_t height, uint8_t on)
 {
 	int x1 = -width, y1 = 0; // II quadrant from bottom left to top right
 	int e2 = height, dx = (1 + 2 * x1) * e2 * e2; // error increment
@@ -578,6 +583,7 @@ void Noritake_GUU100::drawEllipse (uint8_t x, uint8_t y, uint8_t width, uint8_t 
 			y1++;
 			err += dy += 2 * (long) width * width;
 		} // y1 step
+
 	} while (x1 <= 0);
 
 	while (y1++ < height) { // too early stop for flat ellipses with width=1
@@ -586,16 +592,16 @@ void Noritake_GUU100::drawEllipse (uint8_t x, uint8_t y, uint8_t width, uint8_t 
 	}
 }
 
+///////////////////////////////////////////////////////////
 // draw a circle centered at X,Y with a radius as specified
 ///////////////////////////////////////////////////////////
 // Stefan Gustavson (stegu@itn.liu.se) 2003-08-20
 // webstaff.itn.liu.se/~stegu/circle/circlealgorithm.pdf
 ///////////////////////////////////////////////////////////
-void Noritake_GUU100::drawCircle (uint8_t x1, uint8_t y1, uint8_t radius, uint8_t on)
+void Noritake_GUU100::drawCircle (int x1, int y1, int radius, uint8_t on)
 {
-	uint8_t x = 0;
-	uint8_t y = radius;
-
+	int x = 0;
+	int y = radius;
 	int d = (5 - (4 * radius));
 	int dA = 12;
 	int dB = (20 - (8 * radius));
@@ -626,19 +632,17 @@ void Noritake_GUU100::drawCircle (uint8_t x1, uint8_t y1, uint8_t radius, uint8_
 }
 
 // draw a circle, then fill it (actually we just fill in a circular area)
-void Noritake_GUU100::fillCircle (uint8_t x, uint8_t y, uint8_t radius, uint8_t on)
+void Noritake_GUU100::fillCircle (int x, int y, int radius, uint8_t on)
 {
 	int f = 1 - radius;
 	int ddF_x = 1;
 	int ddF_y = -2 * radius;
 	int x1;
 	int y1;
-
 	x1 = 0;
 	y1 = radius;
 
 	while (x1 < y1) {
-
 		if (f >= 0) {
 			y1--;
 			ddF_y += 2;
@@ -648,7 +652,6 @@ void Noritake_GUU100::fillCircle (uint8_t x, uint8_t y, uint8_t radius, uint8_t 
 		x1++;
 		ddF_x += 2;
 		f += ddF_x;
-
 		drawLine (x + x1, y + y1, x + x1, y - y1, on);
 		drawLine (x + y1, y + x1, x + y1, y - x1, on);
 		drawLine (x - x1, y + y1, x - x1, y - y1, on);
@@ -659,34 +662,35 @@ void Noritake_GUU100::fillCircle (uint8_t x, uint8_t y, uint8_t radius, uint8_t 
 }
 
 // draw a circular arc
-void Noritake_GUU100::drawArc (uint8_t org_x, uint8_t org_y, uint8_t radius, double start_angle, double end_angle, uint8_t on)
+void Noritake_GUU100::drawArc (int org_x, int org_y, int radius, double start_angle, double end_angle, uint8_t on)
 {
 	drawArc (org_x, org_y, radius, radius, start_angle, end_angle, on);
 }
 
 // specify the X and Y radius for an "oval" arc
-void Noritake_GUU100::drawArc (uint8_t org_x, uint8_t org_y, uint8_t x_rad, uint8_t y_rad, double start_angle, double end_angle, uint8_t on)
+void Noritake_GUU100::drawArc (int org_x, int org_y, int x_rad, int y_rad, double start_angle, double end_angle, uint8_t on)
 {
-	uint8_t x, y, inc;
-	double angle, th;
+	int x, y;
+	double angle, th, inc;
+	inc = (_displayWidth / 360.0);
 
-	(start_angle > end_angle) ? inc = -1 : inc = 1;
-
-	for (angle = start_angle; angle != end_angle + inc; angle += inc) {
-		th = rad (angle - 90.0);
-		x = round ((cos (th) * x_rad) + org_x);
-		y = round ((sin (th) * y_rad) + org_y);
-		setDot (x, y, on);
+	if (start_angle > end_angle) {
+		swap (start_angle, end_angle);
 	}
 
+	for (angle = start_angle; angle < end_angle; angle += inc) {
+		th = rad (angle - 90.0);
+		x = (cos (th) * x_rad) + org_x;
+		y = (sin (th) * y_rad) + org_y;
+		setDot (x, y, on);
+	}
 }
 
 // screen saver draws random polygons
 void Noritake_GUU100::screenSave (void)
 {
-	uint8_t x, y, angle;
-	uint8_t radius, tworad, sides;
-
+	int x, y, angle;
+	int radius, tworad, sides;
 	radius = (MIN_RADIUS + (rand() % (MAX_RADIUS - MIN_RADIUS)));
 	tworad = (radius * 2);
 	x = (radius + (rand() % ((_displayWidth - 1) - tworad)));
@@ -703,52 +707,58 @@ void Noritake_GUU100::screenSave (void)
 // screensaver prints text at random locations
 void Noritake_GUU100::screenSave (const void *str)
 {
-	uint8_t s, x, y, x_max, y_max;
-
+	int s, x, y, x_max, y_max;
 	setInvert (0); // insure normal pixel polarity
 	setBrightness (100); // max brightness
 	setDisplay (1); // display on
 	clearScreen(); // clear screen before message
-
 	s = strlen ((const char *)(str));
 	x_max = ((_displayWidth - 1) - (s * _next_x));
 	y_max = ((_displayHeight - 1) - _next_y);
 	x = (rand() % x_max);
 	y = (rand() % y_max);
-
 	setCursor (x, y); // set cursor
 	print ((const char *)(str)); // print default or user string
 }
 
 // set the font to use for generating text (PROGMEM pointer)
-void Noritake_GUU100::setFont (const void *fontPtr, uint8_t hofs, uint8_t vofs)
+void Noritake_GUU100::setFont (const void *fontPtr, int hofs, int vofs)
 {
 	setFont ((uint32_t)(fontPtr), hofs, vofs);
 }
 
 // accept a 32 bit (actually 24 bit) PROGMEM font address
-void Noritake_GUU100::setFont (uint32_t fontPtr, uint8_t hofs, uint8_t vofs)
+void Noritake_GUU100::setFont (uint32_t fontPtr, int hofs, int vofs)
 {
-	_clrFont();  // invalidate old font
+	_clrFont(); // invalidate old font
 
 	if (fontPtr) {
-		_fontData     = _fontStart = fontPtr;
-		_fontWidth    = pgm_read_byte (_fontData); _fontData++;
-		_fontHeight   = pgm_read_byte (_fontData); _fontData++;
-		_fontHGap     = pgm_read_byte (_fontData); _fontData++;
-		_fontVGap     = pgm_read_byte (_fontData); _fontData++;
-		_firstChar    = pgm_read_byte (_fontData); _fontData++;
-		_lastChar     = pgm_read_byte (_fontData); _fontData++;
-		_bytesPerChar = pgm_read_byte (_fontData); _fontData++;
+		_fontData = _fontStart = fontPtr;
+		_fontWidth = pgm_read_byte (_fontData++);
+		_fontHeight = pgm_read_byte (_fontData++);
+		_fontHGap = pgm_read_byte (_fontData++);
+		_fontVGap = pgm_read_byte (_fontData++);
+		_firstChar = pgm_read_byte (_fontData++);
+		_lastChar = pgm_read_byte (_fontData++);
+		_bytesPerChar = pgm_read_byte (_fontData++);
+		if (_fontHGap > 0x7F) {
+			_fontHGap = (-256 + _fontHGap); // allow negative offsets
+		}
+		if (_fontVGap > 0x7F) {
+			_fontVGap = (-256 + _fontVGap); // (act like signed)
+		}
 		// now '_fontData' points to the first byte of
 		// the first character image in progmem (i.e.
 		// 7 bytes past the header).
 		_hofs = hofs;
 		_vofs = vofs;
-		_next_x = (_fontWidth + _fontHGap + _hofs);
-		_next_y = (_fontHeight + _fontVGap + _vofs);
-		_maxChars = (_displayWidth / _next_x);
-		_maxLines = (_displayHeight / _next_y);
+		_hExtra = (_fontHGap + _hofs);
+		_vExtra = (_fontVGap + _vofs);
+		_next_x = (_fontWidth + _hExtra);
+		_next_y = (_fontHeight + _vExtra);
+		_maxCols = ((_displayWidth - 1) / _next_x);
+		_maxRows = (_displayHeight / _next_y);
+		_maxChrs = (_maxCols * _maxRows);
 		fontName = (const char *)(_fontData + (((_lastChar - _firstChar) + 1) * _bytesPerChar));
 	}
 }
@@ -760,161 +770,35 @@ uint32_t Noritake_GUU100::getFont (void)
 	return _fontStart;
 }
 
-uint8_t Noritake_GUU100::getCharWidth (void)
+int Noritake_GUU100::getCharWidth (void)
 {
 	return _next_x;
 }
 
-uint8_t Noritake_GUU100::getCharHeight (void)
+int Noritake_GUU100::getCharHeight (void)
 {
 	return _next_y;
 }
 
-uint8_t Noritake_GUU100::getMaxChars (void)
+int Noritake_GUU100::getMaxCols (void)
 {
-	return _maxChars;
+	return _maxCols;
 }
 
-uint8_t Noritake_GUU100::getMaxLines (void)
+int Noritake_GUU100::getMaxRows (void)
 {
-	return _maxLines;
+	return _maxRows;
+}
+
+int Noritake_GUU100::getMaxChrs (void)
+{
+	return _maxChrs;
 }
 
 // set cursor home)
 void Noritake_GUU100::home (void)
 {
 	setCursor (0, 0);
-}
-
-// reset VT parser to starting defaults (ground state)
-void Noritake_GUU100::vt_reset (void)
-{
-	vt_state = 0;
-	vt_cmd = 0;
-	vt_args = 0;
-	memset (vt_arg, 0, sizeof (vt_arg));
-}
-
-// execute a VT command
-size_t Noritake_GUU100::vt_exec (void)
-{
-	uint8_t i, n;
-	double col, row;
-
-	switch (vt_cmd) {
-
-		// CSI[n]A (cursor up), CSI[n]B (cursor down),
-		// CSI[n]C (cursor forward) or CSI[n]D (cursor backward).
-		// NOTE: [n] is optional and defaults to 1 if not given
-		case 'A' ... 'D': {
-			static struct {
-				const double col, row;
-			} adj[] = {
-				{  0.0, -1.0 },
-				{  0.0,  1.0 },
-				{  1.0,  0.0 },
-				{ -1.0,  0.0 },
-			};
-
-			i = (vt_cmd - 'A');
-
-			n = (vt_arg[0] > 0) ? vt_arg[0] : 1;
-
-			getLine (col, row); // get current cursor row & column
-
-			while (n--) {
-				row += adj[i].row;
-				col += adj[i].col;
-			}
-			setLine (col, row); // set new cursor row & column
-			break;
-		}
-
-		// CSI[row];[column]f (line position X,Y)
-		// CSI[row];[column]H (line position X,Y)
-		// NOTE: non-standard, ANSI uses 1;1 as the home position while
-		//       we use 0;0 to conform with the Arduino numbering.
-		case 'f':
-		case 'H': {
-			col = vt_arg[0];
-			row = vt_arg[1];
-			setLine (col, row); // set new cursor row & column
-			break;
-		}
-
-		// CSI[2]J (erase in display `clear screen')
-		case 'J': {
-			if (vt_arg[0] == 2) {
-				clearScreen();
-			}
-			break;
-		}
-
-		// CSIm (select graphic rendition)
-		// we sort of support this as follows:
-		// CSI0m:  reset:   set brightness to  50% and invert off
-		// CSI1m:  bold:    set brightness to 100%
-		// CSI2m:  faint:   set brightness to  20%
-		// CSI7m:  inverse: set video invert on
-		// CSI27m: inv off: set video invert off
-		// CSI30m...37m: foreground "colors" 30...37 are 8 steps of brightness
-		case 'm': {
-			for (n = 0; n < vt_args; n++) {
-				switch (vt_arg[n]) {
-					case 0: {
-						setInvert (0); // ANSI reverse video off
-						setBrightness (50); // ANSI reset/normal
-						break;
-					}
-					case 1: {
-						setBrightness (100); // ANSI bold/bright
-						break;
-					}
-					case 2: {
-						setBrightness (20); // ANSI faint/dim
-						break;
-					}
-					case 7: {
-						setInvert (1); // ANSI reverse video on
-						break;
-					}
-					case 27: {
-						setInvert (0); // ANSI reverse video off
-						break;
-					}
-					// ansi colors used as brightness control
-					case 30 ... 39: {
-						// 30==0, 39==99
-						setBrightness ((vt_arg[n] % 10) * 11);
-						break;
-					}
-					default: {
-						break;
-					}
-				}
-			}
-		}
-
-		// CSIs (save cursor position)
-		case 's': {
-			pushCursor();
-			break;
-		}
-
-		// CSIu (restore cursor position)
-		case 'u': {
-			popCursor();
-			break;
-		}
-
-		default: {
-			break;
-		}
-	}
-
-	vt_reset(); // cmd done, reset parser
-
-	return 0;
 }
 
 size_t Noritake_GUU100::write (int c)
@@ -928,61 +812,11 @@ size_t Noritake_GUU100::write (int c)
 // cell based on the width and height of that character.
 size_t Noritake_GUU100::write (uint8_t c)
 {
-	uint8_t _tmp_x = _cur_x; // get a working copy of cursor pos.
-	uint8_t _tmp_y = _cur_y;
+	int _tmp_x = _cur_x; // get a working copy of cursor pos.
+	int _tmp_y = _cur_y;
 
 	if (! _fontData) {
-		return _noFont (); // give warning message
-	}
-
-	switch (vt_state) {
-		// state 0 is "ordinary character" or "ground state"
-		case 0: {
-			if (c == 0x1B) { // VT code starts with ESC
-				vt_state++; // flag "got ESC, look for more VT
-				return 0; // got part of a vt sequence, don't print it
-
-			} else {
-				vt_reset(); // reset parser
-				break; // fall through to main write
-			}
-		}
-		// state 1 is "got VT escape (0x1B) look for left bracket (0x5B)"
-		case 1: {
-			if (c == '[') { // VT esc code followed by "["
-				vt_state++; // flag "got a sequence, look for a param"
-				return 0; // got part of a vt sequence, don't print it
-
-			} else {
-				vt_reset(); // reset parser
-				break; // fall through to main write
-			}
-		}
-		// state 2...9 is "get parameter"
-		case 2 ... 9: {
-			if (isdigit (c)) { // if 0...9 then it's a parameter
-				vt_arg[vt_args] *= 10; // parse out...
-				vt_arg[vt_args] += (c - '0'); // ...first param
-				return 0; // got part of a vt sequence, don't print it
-			}
-
-			if (c == ';') { // semicolon flags a parameter delimiter
-				vt_args++; // count parsed arg
-				vt_state++; // flag "got param delimiter, look for next param"
-				return 0; // got part of a vt sequence, don't print it
-			}
-
-			if (! ((c < '@') && (c > '~'))) { // 0x40...0x7E marks end of VT command
-				vt_cmd = c; // copy VT command
-				vt_args++; // normalize count
-				return vt_exec(); // got a valid sequence, exec it
-			}
-		}
-
-		default: {
-			vt_reset(); // unknown piece of vt, reject it and print
-			break; // fall through to main write
-		}
+		return _noFont();  // give warning message
 	}
 
 	switch (c) {
@@ -1013,30 +847,117 @@ size_t Noritake_GUU100::write (uint8_t c)
 			return _carriageReturn();
 		}
 
+		// use a filled rectangle for a space because some
+		// fonts (such as the numbers-only type) don't have
+		// a bitmap for the space character
+		case 0x20: {
+			// draw a "space"
+			fillRect (_tmp_x, _tmp_y, _tmp_x + _next_x - 1, _tmp_y + _next_y - 1, 0);
+			// update cursor position
+			updateCursor (_tmp_x, _tmp_y);
+			return 1;
+		}
+
 		// anything else is a printable ascii character
 		default: {
 			break;
 		}
 	}
 
-	// check this AFTER so that control codes always
-	// work, even if they are not in the font file.
+	// check this AFTER so that control codes always work,
+	// even if they are not in the font file.
 	if ((c < _firstChar) || (c > _lastChar)) {
 		return 0;
 	}
 
-	c -= _firstChar; // normalize char to index
-
-	if ((_fontHGap + _hofs) > 0) { // clear any horizontal gap space
-		fillRect (_tmp_x, _tmp_y + _next_y - 1, _tmp_x + _next_x - 1, _tmp_y + _next_y - 1, 0);
+	if (_hExtra) { // clear any horizontal gap space
+		fillRect (_tmp_x + _next_x - _hExtra, _tmp_y, _tmp_x + _next_x - 1, _tmp_y + _next_y - 1, 0);
 	}
 
-	if ((_fontVGap + _vofs) > 0) { // clear any vertical gap space
-		fillRect (_tmp_x + _next_x - 1, _tmp_y, _tmp_x + _next_x - 1, _tmp_y + _next_y - 1, 0);
+	if (_vExtra) { // clear any vertical gap space
+		fillRect (_tmp_x, _tmp_y + _next_y - _vExtra, _tmp_x + _next_x - 1, _tmp_y + _next_y - 1, 0);
 	}
 
-	drawImage (_fontData + (c * _bytesPerChar), _tmp_x, _tmp_y, _fontWidth, _fontHeight); // draw new char
+	// draw the image (character from font file)
+	drawImage (_fontData + ((c - _firstChar) * _bytesPerChar), _tmp_x, _tmp_y, _fontWidth, _fontHeight);
 
+	updateCursor (_tmp_x, _tmp_y);
+
+	return 1;
+}
+
+// this prints "NO FONT" on the VFD screen, centered left-right
+// and top-bottom (if there IS no font loaded of course!)
+uint8_t Noritake_GUU100::_noFont (void)
+{
+	int _x, _y, _w, _h;
+	// from the Hitachi HD44780U LCD character rom
+	static const uint8_t bitmap[] PROGMEM = {
+		0x7F, 0x04, 0x08, 0x10, 0x7F, 0x00, // "N"
+		0x3E, 0x41, 0x41, 0x41, 0x3E, 0x00, // "O"
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SPACE
+		0x7F, 0x09, 0x09, 0x09, 0x01, 0x00, // "F"
+		0x3E, 0x41, 0x41, 0x41, 0x3E, 0x00, // "O"
+		0x7F, 0x04, 0x08, 0x10, 0x7F, 0x00, // "N"
+		0x01, 0x01, 0x7F, 0x01, 0x01, 0x00, // "T"
+	};
+	_h = 8; // character height
+	_w = (sizeof (bitmap) / sizeof (*bitmap)); // how many chars (bitmap width)
+	_x = (((_displayWidth - 1) - _w) / 2); // display center left/right
+	_y = (((_displayHeight - 1) - _h) / 2); // display center top/bottom
+	setInvert (0); // insure normal pixel polarity
+	setBrightness (100); // be sure cathode is on and display is bright
+	clearScreen(); // clear any crap off screen before message
+	drawImage (bitmap, _x, _y, _w, _h); // draw entire message as one graphic block
+	home(); // reset cursor
+	return 0;
+}
+
+// initialize all font data to null
+void Noritake_GUU100::_clrFont (void)
+{
+	fontName = (const char *)(0); // default
+	_firstChar = 0;
+	_lastChar = 0;
+	_bytesPerChar = 0;
+	_fontData = 0;
+	_fontStart = 0;
+	_fontHGap = 0;
+	_fontVGap = 0;
+	_fontHeight = 0;
+	_fontWidth = 0;
+	_maxCols = 0;
+	_maxRows = 0;
+	_maxChrs = 0;
+	_next_x = 0;
+	_next_y = 0;
+	_hofs = 0;
+	_vofs = 0;
+}
+
+// update cursor position info on a BYTE (hardware) level
+void Noritake_GUU100::_nextAddr (void)
+{
+	if (_cur_x < (_displayWidth - 1)) { // if next col position won't hit the end...
+		_cur_x += 1; // next X position
+
+	} else {
+		if (_cur_y < (_displayHeight - 8 - 1)) { // if can set next line...
+			_cur_x = 0; // left edge
+			_cur_y += 8; // next line
+
+		} else {
+			_cur_x = 0; // left edge
+			_cur_y = 0; // first line
+		}
+	}
+
+	setCursor (_cur_x, _cur_y);
+}
+
+// update cursor position info on a SCREEN level
+void Noritake_GUU100::updateCursor (int _tmp_x, int _tmp_y)
+{
 	if ((_cur_x + _next_x) < _displayWidth) {
 		_tmp_x += _next_x; // if room, move to next char space
 
@@ -1052,95 +973,19 @@ size_t Noritake_GUU100::write (uint8_t c)
 	}
 
 	setCursor (_tmp_x, _tmp_y);
-	return 1;
-}
-
-// this prints "NO FONT" on the VFD screen, centered left-right
-// and top-bottom (if there IS no font loaded of course!)
-size_t Noritake_GUU100::_noFont (void)
-{
-	uint8_t _x, _y, _w, _h;
-
-	// from the Hitachi HD44780U LCD character rom
-	static const uint8_t bitmap[] PROGMEM = {
-		0x7F, 0x04, 0x08, 0x10, 0x7F, 0x00, // "N"
-		0x3E, 0x41, 0x41, 0x41, 0x3E, 0x00, // "O"
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // SPACE
-		0x7F, 0x09, 0x09, 0x09, 0x01, 0x00, // "F"
-		0x3E, 0x41, 0x41, 0x41, 0x3E, 0x00, // "O"
-		0x7F, 0x04, 0x08, 0x10, 0x7F, 0x00, // "N"
-		0x01, 0x01, 0x7F, 0x01, 0x01, 0x00, // "T"
-	};
-
-	_h = 8; // character height
-	_w = (sizeof (bitmap) / sizeof (*bitmap)); // how many chars (bitmap width)
-	_x = (((_displayWidth - 1) - _w) / 2); // display center left/right
-	_y = (((_displayHeight - 1) - _h) / 2); // display center top/bottom
-
-	setInvert (0); // insure normal pixel polarity
-	setBrightness (100); // be sure cathode is on and display is bright
-//	clearScreen(); // clear any crap off screen before message
-
-	drawImage (bitmap, _x, _y, _w, _h); // draw entire message as one graphic block
-
-	home(); // reset cursor
-
-	return 0;
-}
-
-// initialize font data to null
-void Noritake_GUU100::_clrFont (void)
-{
-	fontName = (const char *)(0); // default
-	_firstChar = 0;
-	_lastChar = 0;
-	_bytesPerChar = 0;
-	_fontData = 0;
-	_fontStart = 0;
-	_fontHGap = 0;
-	_fontVGap = 0;
-	_fontHeight = 0;
-	_fontWidth = 0;
-	_maxChars = 0;
-	_maxLines = 0;
-	_next_x = 0;
-	_next_y = 0;
-	_hofs = 0;
-	_vofs = 0;
-}
-
-// update cursor position info
-void Noritake_GUU100::_nextAddr (void)
-{
-	if (_cur_x < (_displayWidth - 1)) { // if next col position won't hit the end...
-		_cur_x += 1; // next X position
-
-	} else {
-
-		if (_cur_y < (_displayHeight - 8 - 1)) { // if can set next line...
-			_cur_x = 0; // left edge
-			_cur_y += 8; // next line
-
-		} else {
-			_cur_x = 0; // left edge
-			_cur_y = 0; // first line
-		}
-	}
-
-	setCursor (_cur_x, _cur_y);
 }
 
 // set cursor to left column (line not changed)
-size_t Noritake_GUU100::_carriageReturn (void)
+uint8_t Noritake_GUU100::_carriageReturn (void)
 {
 	setCursor (0, _cur_y); // cursor X position to 0
 	return 0;
 }
 
 // set cursor to next line (column not changed)
-size_t Noritake_GUU100::_lineFeed (void)
+uint8_t Noritake_GUU100::_lineFeed (void)
 {
-	if ((_cur_y + _next_y) < (getMaxLines() * _next_y)) {
+	if ((_cur_y + _next_y) < (getMaxRows() * _next_y)) {
 		_cur_y += _next_y;
 
 	} else {
@@ -1152,7 +997,7 @@ size_t Noritake_GUU100::_lineFeed (void)
 }
 
 // backup one character position, erase backspaced cheracter
-size_t Noritake_GUU100::_backSpace (void)
+uint8_t Noritake_GUU100::_backSpace (void)
 {
 	uint8_t _tmp_x = _cur_x;
 	uint8_t _tmp_y = _cur_y;
@@ -1163,45 +1008,45 @@ size_t Noritake_GUU100::_backSpace (void)
 
 	} else {
 		if ((_tmp_y - _next_y) >= 0) {
-			_tmp_x = ((getMaxChars() - 1) * _next_x);
+			_tmp_x = ((getMaxCols() - 1) * _next_x);
 			_tmp_y -= _next_y;
 
 		} else {
-			_tmp_x = ((getMaxChars() - 1) * _next_x);
-			_tmp_y = ((getMaxLines() - 1) * _next_y);
+			_tmp_x = ((getMaxCols() - 1) * _next_x);
+			_tmp_y = ((getMaxRows() - 1) * _next_y);
 		}
 	}
 
 	setCursor (_tmp_x, _tmp_y);
-	write ((uint8_t)(' '));
+	write ((uint8_t)(0x20));
 	setCursor (_tmp_x, _tmp_y);
 	return 0;
 }
 
 // move cursor to next tab stop (4 places = 1 "tab")
-size_t Noritake_GUU100::_doTabs (uint8_t _tab_size)
+uint8_t Noritake_GUU100::_doTabs (int _tab_size)
 {
-	size_t n = 0;
+	uint8_t n = 0;
 
 	if (! (_cur_x % (_next_x * _tab_size))) {
-		n += write ((uint8_t)(' '));
+		n += write ((uint8_t)(0x20));
 	}
 
 	while (_cur_x % (_next_x * _tab_size)) {
-		n += write ((uint8_t)(' '));
+		n += write ((uint8_t)(0x20));
 	}
 
 	return n;
 }
 
 // align data (usually text) that crosses chip boundaries
-uint8_t Noritake_GUU100::_bitsBetween (uint8_t x, uint8_t y)
+uint8_t Noritake_GUU100::_bitsBetween (int x, int y)
 {
 	if ((x / 8) != (y / 8)) {
-		return ~((1U << ((x % 8))) - 1);
+		return ~ ((1 << ((x % 8))) - 1);
 
 	} else {
-		return ~(((1U << (x % 8))) - 1) & (((1U << (y % 8))) - 1);
+		return ~ (((1 << (x % 8))) - 1) & (((1 << (y % 8))) - 1);
 	}
 }
 
@@ -1213,7 +1058,7 @@ void Noritake_GUU100::_writeData (uint8_t data)
 }
 
 // read one byte of data from the VFD
-uint8_t Noritake_GUU100::_readData (uint8_t x, uint8_t y)
+uint8_t Noritake_GUU100::_readData (int x, int y)
 {
 	setCursor (x, y);
 	uint8_t data = (_inv ? ~_readPort (1) : _readPort (1));
@@ -1228,164 +1073,25 @@ void Noritake_GUU100::_writeCmd (uint8_t cmd)
 }
 
 // check that x and y are legal
-uint8_t Noritake_GUU100::_clampXY (uint8_t x, uint8_t y)
+uint8_t Noritake_GUU100::_clampXY (int x, int y)
 {
-	return ((x < _displayWidth) && (y < _displayHeight)) ? 1 : 0;
+	if (x < _displayWidth && y < _displayHeight) {
+		return 1;
+	}
+
+	return 0;
 }
 
 // align text at "chip" boundaries
-uint8_t Noritake_GUU100::_align (uint8_t x)
+uint8_t Noritake_GUU100::_align (int x)
 {
 	return (((x + 7) / 8) * 8);
 }
 
 // remove bits that don't belong to this "chip"
-uint8_t Noritake_GUU100::_clip (uint8_t x)
+uint8_t Noritake_GUU100::_clip (int x)
 {
 	return ((x / 8) * 8);
 }
 
 //////// end of Noritake_GUU100.cpp ////////
-
-/*
-// execute a VT command
-size_t Noritake_GUU100::vt_exec (void)
-{
-	uint8_t n;
-	double r, c;
-
-	switch (vt_cmd) {
-
-		// CSI[n]A (cursor up) or CSI[n]B (cursor down)
-		// NOTE: [n] is options and defaults to 1 if not given
-		case 'A'...'B': {
-			n = 1; // default
-			getLine (c, r); // get current cursor row & column
-			if (vt_arg[0] > 0) {
-				n = vt_arg[0];
-			}
-			while (n--) {
-				// row -= 1.0 is "cursor up"
-				// row += 1.0 is "cursor down"
-				(vt_cmd == 'A') ? r -= 1.0 : r += 1.0;
-			}
-			setLine (c, r); // set new cursor row & column
-			break;
-		}
-
-		// CSI[n]C (cursor forward) or CSI[n]D (cursor backward)
-		// NOTE: [n] is options and defaults to 1 if not given
-		case 'C'...'D': {
-			n = 1; // default
-			getLine (c, r); // get current cursor row & column
-			if (vt_arg[0] > 0) {
-				n = vt_arg[0];
-			}
-			while (n--) {
-				// column += 1.0 is "cursor foward"
-				// column -= 1.0 is "cursor backward"
-				(vt_cmd == 'C') ? c += 1.0 : c -= 1.0;
-			}
-			setLine (c, r); // set new cursor row & column
-			break;
-		}
-
-		// CSI[row];[column]f (line position X,Y)
-		// NOTE: non-standard, ANSI uses 1;1 as the home position while
-		//       we use 0;0 to conform with the Arduino numbering.
-		// NOTE: On a character LCD/VFD, cursor and line are the same
-		//       thing, but we support "f" for line and "H" for cursor
-		//       to conform to the VFD driver syntax. Not ANSI standard.
-		case 'f': {
-			if (vt_args == 2) {
-				setLine (vt_arg[0], vt_arg[1]);
-			}
-			break;
-		}
-
-		// CSI[x];[y]H (cursor position X,Y)
-		// NOTE: non-standard, ANSI uses 1;1 as the home position while
-		//       we use 0;0 to conform with the Arduino numbering.
-		// NOTE: On a character LCD/VFD, cursor and line are the same
-		//       thing, but we support "f" for line and "H" for cursor
-		//       to conform to the VFD driver syntax. Not ANSI standard.
-		case 'H': {
-			if (vt_args == 2) {
-				setCursor (vt_arg[0], vt_arg[1]);
-			}
-			break;
-		}
-
-		// CSI[n]J (erase in display `clear screen')
-		// NOTE: if [n] is not specified, it defaults to 0.
-		// NOTE: we support [n] 0...3, but in all cases the entire screen
-		//       is cleared and the cursor set to 0,0 (home). Not ANSI standard.
-		case 'J': {
-			if ((vt_arg[0] == 2) && !(vt_args < 0) && !(vt_args > 3)) {
-				clearScreen();
-			}
-			break;
-		}
-
-		// CSIm (select graphic rendition)
-		// we sort of support this as follows:
-		// CSI0m: reset: set brightness to  50%
-		// CSI1m: bold:  set brightness to 100%
-		// CSI2m: faint: set brightness to  30%
-		// CSI30m...37m: foreground "colors" 30...37 are 8 steps of brightness
-		// CSI40m...47m: background "colors" 40...47 are 8 steps of brightness (same as above)
-		case 'm': {
-			if (vt_args > 0) {
-				switch (vt_arg[0]) {
-					case 0: {
-						setBrightness (50);
-						break;
-					}
-					case 1: {
-						setBrightness (100);
-						break;
-					}
-					case 2: {
-						setBrightness (30);
-						break;
-					}
-					// ansi colors used as brightness control
-					case 30 ... 49: {
-						// 30|40==0, 39|49==99
-						setBrightness ((vt_arg[0] % 10) * 11);
-						break;
-					}
-					default: {
-						break;
-					}
-				}
-			}
-		}
-
-		// CSIs (save cursor position)
-		case 's': {
-			if (vt_args == 1) {
-				pushCursor();
-			}
-			break;
-		}
-
-		// CSIu (restore cursor position)
-		case 'u': {
-			if (vt_args == 1) {
-				popCursor();
-			}
-			break;
-		}
-
-		default: {
-			break;
-		}
-	}
-
-	vt_reset(); // cmd done, reset parser
-
-	return 0;
-}
-
-*/

@@ -21,7 +21,9 @@
 #ifndef ATI_8X16_H
 #define ATI_8X16_H
 
-static const uint8_t ati_8x16[] PROGMEM = {
+#define ati_8x16 (pgm_get_far_address(_ati_8x16))
+
+static const uint8_t _ati_8x16[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x10, // height (base + 1)

@@ -21,7 +21,9 @@
 #ifndef FREEDOS_16_H
 #define FREEDOS_16_H
 
-static const uint8_t freedos_16[] PROGMEM = {
+#define freedos_16 (pgm_get_far_address(_freedos_16))
+
+static const uint8_t _freedos_16[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x10, // height (base + 1)

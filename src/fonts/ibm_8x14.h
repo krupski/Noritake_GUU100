@@ -21,7 +21,9 @@
 #ifndef IBM_8X14_H
 #define IBM_8X14_H
 
-static const uint8_t ibm_8x14[] PROGMEM = {
+#define ibm_8x14 (pgm_get_far_address(_ibm_8x14))
+
+static const uint8_t _ibm_8x14[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x0E, // height (base + 1)

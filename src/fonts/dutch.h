@@ -21,7 +21,9 @@
 #ifndef DUTCH_H
 #define DUTCH_H
 
-static const uint8_t dutch[] PROGMEM = {
+#define dutch (pgm_get_far_address(_dutch))
+
+static const uint8_t _dutch[] PROGMEM = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

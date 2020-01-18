@@ -21,7 +21,9 @@
 #ifndef GOTHIC_8X16_H
 #define GOTHIC_8X16_H
 
-static const uint8_t gothic_8x16[] PROGMEM = {
+#define gothic_8x16 (pgm_get_far_address(_gothic_8x16))
+
+static const uint8_t _gothic_8x16[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x10, // height (base + 1)

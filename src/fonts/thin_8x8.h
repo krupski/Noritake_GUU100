@@ -21,7 +21,9 @@
 #ifndef THIN_8X8_H
 #define THIN_8X8_H
 
-static const uint8_t thin_8x8[] PROGMEM = {
+#define thin_8x8 (pgm_get_far_address(_thin_8x8))
+
+static const uint8_t _thin_8x8[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x08, // height (base + 1)

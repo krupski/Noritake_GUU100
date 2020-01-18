@@ -21,7 +21,9 @@
 #ifndef COCO3_H
 #define COCO3_H
 
-static const uint8_t coco3[] PROGMEM = {
+#define coco3 (pgm_get_far_address(_coco3))
+
+static const uint8_t _coco3[] PROGMEM = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

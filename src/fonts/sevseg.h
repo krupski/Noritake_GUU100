@@ -21,7 +21,9 @@
 #ifndef SEV_SEG_H
 #define SEV_SEG_H
 
-static const uint8_t sevseg[] PROGMEM = {
+#define sevseg (pgm_get_far_address(_sevseg))
+
+static const uint8_t _sevseg[] PROGMEM = {
 
 	0x10, // width (base + 0)
 	0x20, // height (base + 1)

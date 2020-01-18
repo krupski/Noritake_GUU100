@@ -21,7 +21,9 @@
 #ifndef GLCDFONT_H
 #define GLCDFONT_H
 
-static const uint8_t glcdfont[] PROGMEM = {
+#define glcdfont (pgm_get_far_address(_glcdfont))
+
+static const uint8_t _glcdfont[] PROGMEM = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

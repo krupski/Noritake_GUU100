@@ -21,7 +21,9 @@
 #ifndef FONT_5X8_D_H
 #define FONT_5X8_D_H
 
-static const uint8_t font_5x8_d[] PROGMEM = {
+#define font_5x8_d (pgm_get_far_address(_font_5x8_d))
+
+static const uint8_t _font_5x8_d[] PROGMEM = {
 
 	0x05, // width (base + 0)
 	0x08, // height (base + 1)

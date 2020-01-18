@@ -21,7 +21,9 @@
 #ifndef ROMAN_8X16_H
 #define ROMAN_8X16_H
 
-static const uint8_t roman_8x16[] PROGMEM = {
+#define roman_8x16 (pgm_get_far_address(_roman_8x16))
+
+static const uint8_t _roman_8x16[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x10, // height (base + 1)

@@ -21,7 +21,9 @@
 #ifndef SLANT_8X16_H
 #define SLANT_8X16_H
 
-static const uint8_t slant_8x16[] PROGMEM = {
+#define slant_8x16 (pgm_get_far_address(_slant_8x16))
+
+static const uint8_t _slant_8x16[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x10, // height (base + 1)

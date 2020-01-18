@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 //
 //  Noritake GU128X64E-U100 VFD Display Driver Library for Arduino
-//  Copyright (c) 2012, 2015 Roger A. Krupski <rakrupski@verizon.net>
+//  Copyright (c) 2012, 2019 Roger A. Krupski <rakrupski@verizon.net>
 //
-//  Last update: 19 July 2016
+//  Last update: 02 November 2019
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,9 +23,11 @@
 #ifndef IO_CONFIG_FILE_H
 #define IO_CONFIG_FILE_H
 
-#define MSEC 1000UL
-#define USEC 1000000UL
-#define NSEC 1000000000UL
+#ifndef _MSEC
+#define _MSEC 1000UL
+#define _USEC 1000000UL
+#define _NSEC 1000000000UL
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // Include the file corresponding to the IO mode you have your GU128X64E-U100

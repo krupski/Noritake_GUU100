@@ -36,7 +36,9 @@
 #ifndef IMON_H
 #define IMON_H
 
-static const uint8_t imon_6x8[] PROGMEM = {
+#define imon_6x8 (pgm_get_far_address(_imon_6x8))
+
+static const uint8_t _imon_6x8[] PROGMEM = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

@@ -21,7 +21,9 @@
 #ifndef TSENG_8X16_H
 #define TSENG_8X16_H
 
-static const uint8_t tseng_8x16[] PROGMEM = {
+#define tseng_8x16 (pgm_get_far_address(_tseng_8x16))
+
+static const int8_t _tseng_8x16[] PROGMEM = {
 
 	0x08, // width (base + 0)
 	0x10, // height (base + 1)
