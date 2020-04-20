@@ -41,7 +41,6 @@
 #include "freedos_16.h"
 #include "glcdfont.h"
 #include "gothic_8x16.h"
-#include "hd44780u.bak"
 #include "hd44780u.h"
 #include "ibm_8x14.h"
 #include "ibm_8x16.h"

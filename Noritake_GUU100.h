@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 //
 //  Noritake GU128X64E-U100 VFD Display Driver Library for Arduino
-//  Copyright (c) 2012, 2019 Roger A. Krupski <rakrupski@verizon.net>
+//  Copyright (c) 2012, 2020 Roger A. Krupski <rakrupski@verizon.net>
 //
-//  Last update: 18 December 2019
+//  Last update: 03 April 2020
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,26 +24,24 @@
 #define NORITAKE_VFD_GUU100_H
 
 #if ARDUINO < 100
-#include <WProgram.h>
+	#include <WProgram.h>
 #else
-#include <Arduino.h>
+	#include <Arduino.h>
 #endif
 
-#include <inttypes.h>
 #include "Print.h"
 
 // fonts use no memory unless they are loaded
 #include "fonts/allFonts.h"
 
-#ifndef HAVE_SWAP
-// swap (a, b);
-template <class T> void swap (T &a, T &b) // function
+#ifndef HAVE_SWAP // swap (x, y);
+template <typename T> void swap (T &x, T &y) // function
 {
-	T tmp = a;
-	a = b;
-	b = tmp;
+	T tmp = x;
+	x = y;
+	y = tmp;
 }
-#define HAVE_SWAP
+#define HAVE_SWAP 1
 #endif
 
 class Noritake_GUU100 : public Print {
@@ -81,7 +79,7 @@ class Noritake_GUU100 : public Print {
 		void drawArc (int, int, int, int, double, double, uint8_t);
 		void screenSave (void);
 		void screenSave (const void *);
-		void setFont (const void *, int = 0, int = 0);
+		void setFont (const void * = 0, int = 0, int = 0);
 		void setFont (uint32_t, int = 0, int = 0);
 		const char *fontName;
 		uint32_t getFont (void);
@@ -89,29 +87,37 @@ class Noritake_GUU100 : public Print {
 		int getCharHeight (void);
 		int getMaxCols (void);
 		int getMaxRows (void);
-		int getMaxChrs (void);
+		int getMaxChars (void);
 		void home (void);
-		size_t write (int);
 		virtual size_t write (uint8_t);
+		using Print::write; // pull in write
+
 	private:
 		// display is 128 X 64 pixels (8192 pixels, 1024 bytes)
-		#define VFD_WIDTH 128
-		#define VFD_HEIGHT 64
+#define VFD_WIDTH 128
+#define VFD_HEIGHT 64
 		// VFD commands (GU128X64E manual pg. 14..16)
-		#define SETDISP 0b00111110 // display on/off (cathode not affected)
-		#define SETADDR 0b01000000 // horizontal byte select 0..63 (X)
-		#define SETPAGE 0b10111000 // vertical byte select 0..7 (Y)
-		#define SETLINE 0b11000000 // display line start offset 0..63 (Z)
-		#define SETBRITE 0b00100000 // set display brightness 0bx000:max, 0bx111:min
-		#define CATHODE 0b00001000 // filament power on/off bit for set brightness command. LO=off, HI=on
-		#define FUNC_SET 0b00100000 // function set req'd before brightness & cathode commands
-		#define SPI_RCMD 0b11111100 // SPI control bits, R/W (bit3) = HI (GU128X64E manual pg. 8)
-		#define SPI_WCMD 0b11111000 // SPI control bits, R/W (bit3) = LO (GU128X64E manual pg. 8)
+#define SETDISP 0b00111110 // display on/off (cathode not affected)
+#define SETADDR 0b01000000 // horizontal byte select 0..63 (X)
+#define SETPAGE 0b10111000 // vertical byte select 0..7 (Y)
+#define SETLINE 0b11000000 // display line start offset 0..63 (Z)
+#define SETBRITE 0b00100000 // set display brightness 0bx000:max, 0bx111:min
+#define CATHODE 0b00001000 // filament power on/off bit for set brightness command. LO=off, HI=on
+#define FUNC_SET 0b00100000 // function set req'd before brightness & cathode commands
+#define SPI_RCMD 0b11111100 // SPI control bits, R/W (bit3) = HI (GU128X64E manual pg. 8)
+#define SPI_WCMD 0b11111000 // SPI control bits, R/W (bit3) = LO (GU128X64E manual pg. 8)
 		// Screen saver polygon defs (when text is not supplied
-		#define MIN_RADIUS 8 // less than 8 it's hard to see the polygon shape
-		#define MAX_RADIUS 63 // screen height
-		#define MIN_SIDES 3 // obviously!
-		#define MAX_SIDES 9 // more than 9 sides looks more like a circle
+#define MIN_RADIUS 8 // less than 8 it's hard to see the polygon shape
+#define MAX_RADIUS 63 // screen height
+#define MIN_SIDES 3 // obviously!
+#define MAX_SIDES 9 // more than 9 sides looks more like a circle
+		// ASCII control chars
+#define BS  0x08
+#define TAB 0x09
+#define LF  0x0A
+#define FF  0x0C
+#define CR  0x0D
+#define SPC 0x20
 		// private variables
 		int _hofs;
 		int _vofs;
@@ -121,20 +127,23 @@ class Noritake_GUU100 : public Print {
 		int _fontVGap;
 		int _fontWidth;
 		int _fontHeight;
-		int _bytesPerChar;
+		int _cur_x;
+		int _cur_y;
+		int _cur_z;
+		int _tmp_x;
+		int _tmp_y;
+		int _tmp_z;
+		int _next_x;
+		int _next_y;
+		int _save_cur_x;
+		int _save_cur_y;
+		int _save_cur_z;
 		uint8_t _displayBright;
 		uint8_t _inv;
 		uint8_t _maxCols;
 		uint8_t _maxRows;
 		uint8_t _maxChrs;
-		int _cur_x;
-		int _cur_y;
-		int _cur_z;
-		int _save_cur_x;
-		int _save_cur_y;
-		int _save_cur_z;
-		int _next_x;
-		int _next_y;
+		uint8_t _bytesPerChar;
 		uint8_t _displayHeight;
 		uint8_t _displayWidth;
 		uint8_t _firstChar;
@@ -145,7 +154,7 @@ class Noritake_GUU100 : public Print {
 		uint8_t _noFont (void);
 		void _clrFont (void);
 		void _nextAddr (void);
-		void updateCursor (int, int);
+		void _updateCursor (int, int);
 		uint8_t _carriageReturn (void);
 		uint8_t _lineFeed (void);
 		uint8_t _backSpace (void);

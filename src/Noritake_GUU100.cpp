@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Noritake GU128X64E-U100 VFD Display Driver Library for Arduino
-//  Copyright (c) 2012, 2019 Roger A. Krupski <rakrupski@verizon.net>
+//  Copyright (c) 2012, 2020 Roger A. Krupski <rakrupski@verizon.net>
 //
-//  Last update: 18 December 2019
+//  Last update: 03 April 2020
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -348,8 +348,8 @@ void Noritake_GUU100::drawImage (uint32_t data, int x, int y, uint8_t width, uin
 
 					for (ix = 0; ix < width; ix++) {
 						src = pgm_read_byte (data + ix) + ((data + ix < end)
-						   ? (pgm_read_byte (data + ix + width) << 8)
-						   : 0);
+														   ? (pgm_read_byte (data + ix + width) << 8)
+														   : 0);
 						src >>= (_align (y) - y);
 						_writeData (src);
 					}
@@ -364,8 +364,8 @@ void Noritake_GUU100::drawImage (uint32_t data, int x, int y, uint8_t width, uin
 				for (ix = 0; ix < width; ix++) {
 					mix = _readData (x + ix, _clip (y2));
 					src = pgm_read_byte (data + ix) + ((data + ix < end)
-					   ? (pgm_read_byte (data + ix + width) << 8)
-					   : 0);
+													   ? (pgm_read_byte (data + ix + width) << 8)
+													   : 0);
 					src >>= (_align (y) - y);
 					src = (mix & ~mask) | (src & mask);
 					_writeData (src);
@@ -440,43 +440,30 @@ void Noritake_GUU100::drawVector (int x, int y, int sr, int er, double angle, ui
 
 void Noritake_GUU100::drawLine (int x0, int y0, int x1, int y1, uint8_t on)
 {
-	int dx, dy, sx, sy;
+	int delta_x = 0, delta_y = 0, step_x, step_y, err, err2;
+	delta_x += abs (x1 - x0);
+	step_x = (x0 < x1) ? 1 : -1;
+	delta_y -= (abs (y1 - y0));
+	step_y = (y0 < y1) ? 1 : -1;
+	err = (delta_x + delta_y);
 
-	if (x0 < x1) {
-		dx = (x1 - x0);
-		sx = 1;
-
-	} else {
-		dx = (x0 - x1);
-		sx = -1;
-	}
-
-	if (y0 < y1) {
-		dy = (y1 - y0);
-		sy = 1;
-
-	} else {
-		dy = (y0 - y1);
-		sy = -1;
-	}
-
-	int e = (dx - dy);
-	int e2;
-
-	while (((x1 != x0) || (y1 != y0))) {
-
+	while (1) {
 		setDot (x0, y0, on);
 
-		e2 = 2 * e;
-
-		if (e2 > -dy) {
-			e -= dy;
-			x0 += sx;
+		if ((x0 == x1) && (y0 == y1)) {
+			break;
 		}
 
-		if (e2 < dx) {
-			e += dx;
-			y0 += sy;
+		err2 = (2 * err);
+
+		if (err2 > delta_y) {
+			err += delta_y;
+			x0 += step_x;
+		}
+
+		if (err2 < delta_x) {
+			err += delta_x;
+			y0 += step_y;
 		}
 	}
 }
@@ -583,7 +570,6 @@ void Noritake_GUU100::drawEllipse (int x, int y, uint8_t width, uint8_t height, 
 			y1++;
 			err += dy += 2 * (long) width * width;
 		} // y1 step
-
 	} while (x1 <= 0);
 
 	while (y1++ < height) { // too early stop for flat ellipses with width=1
@@ -668,7 +654,8 @@ void Noritake_GUU100::drawArc (int org_x, int org_y, int radius, double start_an
 }
 
 // specify the X and Y radius for an "oval" arc
-void Noritake_GUU100::drawArc (int org_x, int org_y, int x_rad, int y_rad, double start_angle, double end_angle, uint8_t on)
+void Noritake_GUU100::drawArc (int org_x, int org_y, int x_rad, int y_rad, double start_angle, double end_angle,
+							   uint8_t on)
 {
 	int x, y;
 	double angle, th, inc;
@@ -741,12 +728,6 @@ void Noritake_GUU100::setFont (uint32_t fontPtr, int hofs, int vofs)
 		_firstChar = pgm_read_byte (_fontData++);
 		_lastChar = pgm_read_byte (_fontData++);
 		_bytesPerChar = pgm_read_byte (_fontData++);
-		if (_fontHGap > 0x7F) {
-			_fontHGap = (-256 + _fontHGap); // allow negative offsets
-		}
-		if (_fontVGap > 0x7F) {
-			_fontVGap = (-256 + _fontVGap); // (act like signed)
-		}
 		// now '_fontData' points to the first byte of
 		// the first character image in progmem (i.e.
 		// 7 bytes past the header).
@@ -790,7 +771,7 @@ int Noritake_GUU100::getMaxRows (void)
 	return _maxRows;
 }
 
-int Noritake_GUU100::getMaxChrs (void)
+int Noritake_GUU100::getMaxChars (void)
 {
 	return _maxChrs;
 }
@@ -801,19 +782,13 @@ void Noritake_GUU100::home (void)
 	setCursor (0, 0);
 }
 
-size_t Noritake_GUU100::write (int c)
-{
-	// support non-uint8_t writes
-	return write ((uint8_t)(c));
-}
-
 // write any character on the screen from a loaded font.
 // the cursor is automatically updated to the next character
 // cell based on the width and height of that character.
 size_t Noritake_GUU100::write (uint8_t c)
 {
-	int _tmp_x = _cur_x; // get a working copy of cursor pos.
-	int _tmp_y = _cur_y;
+	_tmp_x = _cur_x; // get a working copy of cursor pos.
+	_tmp_y = _cur_y;
 
 	if (! _fontData) {
 		return _noFont();  // give warning message
@@ -821,41 +796,44 @@ size_t Noritake_GUU100::write (uint8_t c)
 
 	switch (c) {
 		// backup one space, erase last char
-		case 0x08: {
+		case BS: {
 			return _backSpace();
 		}
 
 		// tabs are 4 spaces (maybe useful for lining stuff up?)
-		case 0x09: {
+		case TAB: {
 			return _doTabs (4);
 		}
 
 		// drop down to the next line (column position remains
 		// unchanged). For newline you need CR and LF
-		case 0x0A: {
+		case LF: {
 			return _lineFeed();
 		}
 
 		// erase the screen (fill with spaces)
-		case 0x0C: {
+		case FF: {
 			return clearScreen();
 		}
 
 		// set the cursor to the lefthand most position
 		// (line position remains unchanged)
-		case 0x0D: {
+		case CR: {
 			return _carriageReturn();
 		}
 
-		// use a filled rectangle for a space because some
-		// fonts (such as the numbers-only type) don't have
-		// a bitmap for the space character
-		case 0x20: {
-			// draw a "space"
-			fillRect (_tmp_x, _tmp_y, _tmp_x + _next_x - 1, _tmp_y + _next_y - 1, 0);
-			// update cursor position
-			updateCursor (_tmp_x, _tmp_y);
-			return 1;
+		// use a filled rectangle for a space if the font
+		// does not have a bitmap for the space character
+		// (for example, numbers only fonts)
+		case SPC: {
+			if (_firstChar > SPC) {
+				fillRect (_tmp_x, _tmp_y, _tmp_x + _next_x - 1, _tmp_y + _next_y - 1, 0);
+				_updateCursor (_tmp_x, _tmp_y);
+				return 1;
+
+			} else {
+				break;
+			}
 		}
 
 		// anything else is a printable ascii character
@@ -880,9 +858,7 @@ size_t Noritake_GUU100::write (uint8_t c)
 
 	// draw the image (character from font file)
 	drawImage (_fontData + ((c - _firstChar) * _bytesPerChar), _tmp_x, _tmp_y, _fontWidth, _fontHeight);
-
-	updateCursor (_tmp_x, _tmp_y);
-
+	_updateCursor (_tmp_x, _tmp_y);
 	return 1;
 }
 
@@ -890,7 +866,7 @@ size_t Noritake_GUU100::write (uint8_t c)
 // and top-bottom (if there IS no font loaded of course!)
 uint8_t Noritake_GUU100::_noFont (void)
 {
-	int _x, _y, _w, _h;
+	int x, y, w, h;
 	// from the Hitachi HD44780U LCD character rom
 	static const uint8_t bitmap[] PROGMEM = {
 		0x7F, 0x04, 0x08, 0x10, 0x7F, 0x00, // "N"
@@ -901,14 +877,14 @@ uint8_t Noritake_GUU100::_noFont (void)
 		0x7F, 0x04, 0x08, 0x10, 0x7F, 0x00, // "N"
 		0x01, 0x01, 0x7F, 0x01, 0x01, 0x00, // "T"
 	};
-	_h = 8; // character height
-	_w = (sizeof (bitmap) / sizeof (*bitmap)); // how many chars (bitmap width)
-	_x = (((_displayWidth - 1) - _w) / 2); // display center left/right
-	_y = (((_displayHeight - 1) - _h) / 2); // display center top/bottom
+	h = 8; // character height
+	w = (sizeof (bitmap) / sizeof (*bitmap)); // how many chars (bitmap width)
+	x = (((_displayWidth - 1) - w) / 2); // display center left/right
+	y = (((_displayHeight - 1) - h) / 2); // display center top/bottom
 	setInvert (0); // insure normal pixel polarity
 	setBrightness (100); // be sure cathode is on and display is bright
 	clearScreen(); // clear any crap off screen before message
-	drawImage (bitmap, _x, _y, _w, _h); // draw entire message as one graphic block
+	drawImage (bitmap, x, y, w, h); // draw entire message as one graphic block
 	home(); // reset cursor
 	return 0;
 }
@@ -956,23 +932,23 @@ void Noritake_GUU100::_nextAddr (void)
 }
 
 // update cursor position info on a SCREEN level
-void Noritake_GUU100::updateCursor (int _tmp_x, int _tmp_y)
+void Noritake_GUU100::_updateCursor (int x, int y)
 {
 	if ((_cur_x + _next_x) < _displayWidth) {
-		_tmp_x += _next_x; // if room, move to next char space
+		x += _next_x; // if room, move to next char space
 
 	} else {
 		if ((_cur_y + _next_y) < _displayHeight) {
-			_tmp_x = 0; // no room for next char, if next line...
-			_tmp_y += _next_y; // ...is available, then go to it
+			x = 0; // no room for next char, if next line...
+			y += _next_y; // ...is available, then go to it
 
 		} else {
-			_tmp_x = 0; // loop back from the beginning
-			_tmp_y = 0;
+			x = 0; // loop back from the beginning
+			y = 0;
 		}
 	}
 
-	setCursor (_tmp_x, _tmp_y);
+	setCursor (x, y);
 }
 
 // set cursor to left column (line not changed)
@@ -999,8 +975,8 @@ uint8_t Noritake_GUU100::_lineFeed (void)
 // backup one character position, erase backspaced cheracter
 uint8_t Noritake_GUU100::_backSpace (void)
 {
-	uint8_t _tmp_x = _cur_x;
-	uint8_t _tmp_y = _cur_y;
+	_tmp_x = _cur_x;
+	_tmp_y = _cur_y;
 
 	if ((_tmp_x - _next_x) >= 0) {
 		// backup 1 char if we can
@@ -1018,7 +994,7 @@ uint8_t Noritake_GUU100::_backSpace (void)
 	}
 
 	setCursor (_tmp_x, _tmp_y);
-	write ((uint8_t)(0x20));
+	write ((uint8_t)(SPC));
 	setCursor (_tmp_x, _tmp_y);
 	return 0;
 }
@@ -1029,11 +1005,11 @@ uint8_t Noritake_GUU100::_doTabs (int _tab_size)
 	uint8_t n = 0;
 
 	if (! (_cur_x % (_next_x * _tab_size))) {
-		n += write ((uint8_t)(0x20));
+		n += write ((uint8_t)(SPC));
 	}
 
 	while (_cur_x % (_next_x * _tab_size)) {
-		n += write ((uint8_t)(0x20));
+		n += write ((uint8_t)(SPC));
 	}
 
 	return n;
@@ -1075,7 +1051,7 @@ void Noritake_GUU100::_writeCmd (uint8_t cmd)
 // check that x and y are legal
 uint8_t Noritake_GUU100::_clampXY (int x, int y)
 {
-	if (x < _displayWidth && y < _displayHeight) {
+	if ((x < _displayWidth) && (y < _displayHeight)) {
 		return 1;
 	}
 

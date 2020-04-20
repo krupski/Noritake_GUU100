@@ -1,9 +1,9 @@
 ///////////////////////////////////////////////////////////////////////////////////////
 //
 //  Noritake "Type 0: PARALLEL [Parallel Interface] format" (pg. 10)
-//  Copyright (c) 2012, 2019 Roger A. Krupski <rakrupski@verizon.net>
+//  Copyright (c) 2012, 2016 Roger A. Krupski <rakrupski@verizon.net>
 //
-//  Last update: 02 November 2019
+//  Last update: 15 April 2016
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -41,63 +41,54 @@
 #define ENABL_PIN 34 // chip enable pin
 #define RESET_PIN 35 // reset pin connected here
 
-void Noritake_GUU100::_initPort (void)
+inline void Noritake_GUU100::_initPort (void)
 {
-	// 100 msec delay after powerup (GU128X64E manual pg. 17)
-	__builtin_avr_delay_cycles (F_CPU / (_MSEC / 100));
-
 	// setup bitmasks
 	RS_BIT  = digitalPinToBitMask (RGSEL_PIN); // register select pin
-	CS1_BIT = digitalPinToBitMask (CSEL1_PIN); // chip select left pin
 	RW_BIT  = digitalPinToBitMask (RDWRT_PIN); // read / write pin
-	CS2_BIT = digitalPinToBitMask (CSEL2_PIN); // chip select right pin
 	EN_BIT  = digitalPinToBitMask (ENABL_PIN); // chip enable pin
+	CS1_BIT = digitalPinToBitMask (CSEL1_PIN); // chip select left pin
+	CS2_BIT = digitalPinToBitMask (CSEL2_PIN); // chip select right pin
 	RST_BIT = digitalPinToBitMask (RESET_PIN); // reset pin
-
 	// setup PARALLEL control pins
-	DATA_DDR = 0xFF; // parallel data port as an output
+	CTRL_OUT &= ~ (RS_BIT | RW_BIT | EN_BIT | CS1_BIT | CS2_BIT); // all low
+	CTRL_OUT |= RST_BIT; // except reset
 	CTRL_DDR |= (RS_BIT | RW_BIT | EN_BIT | CS1_BIT | CS2_BIT | RST_BIT); // all outputs
-	CTRL_OUT &= (RS_BIT | RW_BIT | EN_BIT | CS1_BIT | CS2_BIT | RST_BIT); // all low
-	__builtin_avr_delay_cycles (F_CPU / _USEC); // 1 usec
-	CTRL_OUT |= RST_BIT; // de-assert reset
+	DATA_DDR = 0xFF; // parallel data port as an output
+	// 100 msec delay after powerup (GU128X64E manual pg. 17)
+	//	__builtin_avr_delay_cycles (F_CPU / (MSEC / 100));
+	CTRL_OUT &= ~RST_BIT;
+	__builtin_avr_delay_cycles (F_CPU / (USEC / 5)); // 5 usec
+	CTRL_OUT |= RST_BIT;
 }
 
-uint8_t Noritake_GUU100::_readPort (uint8_t rs)
+inline uint8_t Noritake_GUU100::_readPort (uint8_t rs)
 {
 	uint8_t data;
-
-	DATA_DDR = 0x00;
-	// clear chip selects, register select, set rw to "read", assert enable
-	CTRL_OUT |= (CS2_BIT | CS1_BIT | RS_BIT | RW_BIT | EN_BIT);
-	// set proper chip select, register select, de-assert enable
-	// (performs the "dummy read" GU128X64E-U100 manual pg. 16)
-	CTRL_OUT &= ~(((_cur_x < (_displayWidth / 2)) ? CS2_BIT : CS1_BIT) | (rs ? 0x00 : RS_BIT) | EN_BIT);
-	// assert enable
-	CTRL_OUT |= EN_BIT;
-	// bus settle time 320 nsec minimum (GU128X64E manual pg. 10)
-	__builtin_avr_delay_cycles (F_CPU / _USEC); // 1 usec
-	// read data from display
-	data = DATA_INP;
-	// de-assert enable
-	CTRL_OUT &= ~EN_BIT;
-	// set data DDR to "output" (because writes occur about 9 times as
-	// frequently as reads, so don't burden "_writePort" with setting DDR
-	DATA_DDR = 0xFF;
+	DATA_DDR = 0x00; // parallel data port as an input
+	// set proper cs1/2 and pulse EN (dummy read - GU128X64E manual pg. 16)
+	CTRL_OUT |= (((_cur_x < (_displayWidth / 2)) ? CS1_BIT : CS2_BIT) | (rs ? RS_BIT : 0) | RW_BIT | EN_BIT);
+	CTRL_OUT &= ~ (((_cur_x < (_displayWidth / 2)) ? CS2_BIT : CS1_BIT) | (rs ? 0 : RS_BIT) | EN_BIT);
+	CTRL_OUT |= EN_BIT; // latch data to bus on rising edge
+	// bus settle time 320 nsec (GU128X64E manual pg. 10)
+	__builtin_avr_delay_cycles (F_CPU / (NSEC / 320));
+	data = DATA_INP; // read a byte from VFD->AVR
+	CTRL_OUT &= ~EN_BIT; // de-assert enable
+	// we set the data port back to outputs so that _writePort doesn't
+	// have to do it every time - writes occur about 9 times for every
+	// read so it makes things run a little faster.
+	DATA_DDR = 0xFF; // parallel data port as an output
 	return data;
 }
 
-void Noritake_GUU100::_writePort (uint8_t data, uint8_t rs)
+inline void Noritake_GUU100::_writePort (uint8_t data, uint8_t rs)
 {
-	// clear chip selects, register select
-	CTRL_OUT |= (CS2_BIT | CS1_BIT | RS_BIT);
-	// set proper chip select, register select, set rw to "write"
-	CTRL_OUT &= ~(((_cur_x < (_displayWidth / 2)) ? CS2_BIT : CS1_BIT) | (rs ? 0x00 : RS_BIT) | RW_BIT);
-	// assert enable
-	CTRL_OUT |= EN_BIT;
-	// write data to parallel port
-	DATA_OUT = data;
-	// de-assert enable
-	CTRL_OUT &= ~EN_BIT;
+	CTRL_OUT = (((_cur_x & (_displayWidth / 2)) ? CS2_BIT : CS1_BIT) | (rs ? RS_BIT : 0) | RST_BIT);
+	DATA_OUT = data; // write a byte from AVR->VFD
+	CTRL_OUT |= EN_BIT; // assert enable
+	// bus settle time 320 nsec (GU128X64E manual pg. 10)
+	__builtin_avr_delay_cycles (F_CPU / (NSEC / 320));
+	CTRL_OUT &= ~EN_BIT; // latch data to vfd on falling edge
 }
 
 #endif // #if (defined(....
