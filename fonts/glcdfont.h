@@ -23,7 +23,7 @@
 
 #define glcdfont (pgm_get_far_address(_glcdfont))
 
-static const uint8_t _glcdfont[] PROGMEM = {
+static const uint8_t _glcdfont[] __attribute__((progmem)) = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

@@ -23,7 +23,7 @@
 
 #define dutch (pgm_get_far_address(_dutch))
 
-static const uint8_t _dutch[] PROGMEM = {
+static const uint8_t _dutch[] __attribute__((progmem)) = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

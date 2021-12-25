@@ -38,7 +38,7 @@
 
 #define iso8859_6x8 (pgm_get_far_address(_iso8859_6x8))
 
-static const uint8_t _iso8859_6x8[] PROGMEM = {
+static const uint8_t _iso8859_6x8[] __attribute__((progmem)) = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

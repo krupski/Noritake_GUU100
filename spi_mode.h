@@ -46,10 +46,10 @@ inline void Noritake_GUU100::_initPort (void)
 	CTRL_DDR |= (RST_BIT | CS1_BIT | CS2_BIT);
 	// setup SPI pins
 	SPI_DDR |= (
-				   digitalPinToBitMask (MOSI) |
-				   digitalPinToBitMask (SCK) |
-				   digitalPinToBitMask (SS)
-			   ); // MOSI, SCK & SS are outputs
+	   digitalPinToBitMask (MOSI) |
+	   digitalPinToBitMask (SCK) |
+	   digitalPinToBitMask (SS)
+	); // MOSI, SCK & SS are outputs
 	SPI_DDR &= ~digitalPinToBitMask (MISO); // MISO is input
 	// SPI enable, master mode, mode 3
 	SPCR = ((1 << SPE) | (1 << MSTR) | (1 << CPOL) | (1 << CPHA));
@@ -57,8 +57,6 @@ inline void Noritake_GUU100::_initPort (void)
 #if (! (F_CPU > 16000000UL))
 	SPSR |= (1 << SPI2X); // double speed SPI
 #endif
-	// 100 msec delay after powerup (GU128X64E manual pg. 17)
-	//	__builtin_avr_delay_cycles (F_CPU / (MSEC / 100)); // 100 msec
 	// assert HW reset for minimum 250 nsec (GU128X64E manual pg. 17)
 	CTRL_OUT &= ~RST_BIT;
 	__builtin_avr_delay_cycles (F_CPU / (USEC / 5)); // 5 usec

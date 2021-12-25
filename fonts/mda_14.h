@@ -23,7 +23,7 @@
 
 #define mda_14 (pgm_get_far_address(_mda_14))
 
-static const uint8_t _mda_14[] PROGMEM = {
+static const uint8_t _mda_14[] __attribute__((progmem)) = {
 
 	0x08, // width (base + 0)
 	0x0E, // height (base + 1)

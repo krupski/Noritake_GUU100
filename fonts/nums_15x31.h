@@ -28,7 +28,7 @@
 
 #define nums_15x31 (pgm_get_far_address(_nums_15x31))
 
-static const uint8_t _nums_15x31[] PROGMEM = {
+static const uint8_t _nums_15x31[] __attribute__((progmem)) = {
 
 	0x10, // width (base + 0)
 	0x20, // height (base + 1)

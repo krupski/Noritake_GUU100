@@ -38,7 +38,7 @@
 
 #define t6963 (pgm_get_far_address(_t6963))
 
-static const uint8_t _t6963[] PROGMEM = {
+static const uint8_t _t6963[] __attribute__((progmem)) = {
 
 	0x06, // width (base + 0)
 	0x08, // height (base + 1)

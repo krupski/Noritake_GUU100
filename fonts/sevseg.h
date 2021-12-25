@@ -23,14 +23,14 @@
 
 #define sevseg (pgm_get_far_address(_sevseg))
 
-static const uint8_t _sevseg[] PROGMEM = {
+static const uint8_t _sevseg[] __attribute__((progmem)) = {
 
 	0x10, // width (base + 0)
 	0x20, // height (base + 1)
 	0x00, // horizontal gap (base + 2)
 	0x00, // vertical gap (base + 3)
-	'0', // first char (base + 4)
-	':', // last char (base + 5)
+	0x30, // first char (base + 4)
+	0x3A, // last char (base + 5)
 	0x40, // bytes per char (base + 6)
 
 	0xFF, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, // 0x30 (0)

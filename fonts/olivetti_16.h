@@ -23,7 +23,7 @@
 
 #define olivetti_16 (pgm_get_far_address(_olivetti_16))
 
-static const uint8_t _olivetti_16[] PROGMEM = {
+static const uint8_t _olivetti_16[] __attribute__((progmem)) = {
 
 	0x08, // width (base + 0)
 	0x10, // height (base + 1)

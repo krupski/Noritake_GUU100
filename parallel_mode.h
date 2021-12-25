@@ -55,8 +55,6 @@ inline void Noritake_GUU100::_initPort (void)
 	CTRL_OUT |= RST_BIT; // except reset
 	CTRL_DDR |= (RS_BIT | RW_BIT | EN_BIT | CS1_BIT | CS2_BIT | RST_BIT); // all outputs
 	DATA_DDR = 0xFF; // parallel data port as an output
-	// 100 msec delay after powerup (GU128X64E manual pg. 17)
-	//	__builtin_avr_delay_cycles (F_CPU / (MSEC / 100));
 	CTRL_OUT &= ~RST_BIT;
 	__builtin_avr_delay_cycles (F_CPU / (USEC / 5)); // 5 usec
 	CTRL_OUT |= RST_BIT;

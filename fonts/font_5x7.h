@@ -23,7 +23,7 @@
 
 #define font_5x7 (pgm_get_far_address(_font_5x7))
 
-static const uint8_t _font_5x7[] PROGMEM = {
+static const uint8_t _font_5x7[] __attribute__((progmem)) = {
 
 	0x05, // width (base + 0)
 	0x07, // height (base + 1)
